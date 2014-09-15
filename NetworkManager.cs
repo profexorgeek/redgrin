@@ -81,7 +81,21 @@ namespace FlatRedNetwork
         /// <summary>
         /// The game arena that controls all client game objects
         /// </summary>
-        public INetworkArena GameArena { get; set; }
+        public INetworkArena GameArena
+        {
+            get
+            {
+                if(mGameArena == null)
+                {
+                    throw new FlatRedNetworkException("You must pass a reference to an INetworkArena before any entity information can be exchanged.");
+                }
+                return mGameArena;
+            }
+            set
+            {
+                mGameArena = value;
+            }
+        }
 
 
 
@@ -105,6 +119,11 @@ namespace FlatRedNetwork
         /// </summary>
         private long mEntityId;
 
+        /// <summary>
+        /// A reference to the game arena
+        /// </summary>
+        private INetworkArena mGameArena;
+
 
         /// <summary>
         /// Instantiate the Network.
@@ -126,6 +145,14 @@ namespace FlatRedNetwork
         /// </summary>
         public void Update()
         {
+            // early out, don't update if network not running
+            // allows generic update call in main gameloop before
+            // network has initialized
+            if(mNetwork == null || mNetwork.Status != NetPeerStatus.Running)
+            {
+                return;
+            }
+
             NetIncomingMessage msg;
             while((msg = mNetwork.ReadMessage()) != null)
             {
@@ -254,12 +281,12 @@ namespace FlatRedNetwork
             {
                 case NetworkRole.Client :
                     mNetwork = new NetClient(config);
-                    mLog.Debug("Starting client.");
+                    mLog.Info("Starting client.");
                     break;
                 case NetworkRole.Server :
                     config.Port = Configuration.ApplicationPort;
                     mNetwork = new NetServer(config);
-                    mLog.Debug("Starting server on port:" + Configuration.ApplicationPort);
+                    mLog.Info("Starting server on port:" + Configuration.ApplicationPort);
                     break;
             }
             mNetwork.Start();
