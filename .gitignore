@@ -1,0 +1,17 @@
+[Oo]bj
+[Bb]in
+*.user
+*.suo
+*.[Cc]ache
+*.cachefile
+*.bak
+*.log
+*.ncb
+*.DS_Store
+*.Generated.cs
+*.Generated.Event.cs
+*.mep
+*.sep
+*.pesix
+[Tt]humbs.db
+*.Cache
