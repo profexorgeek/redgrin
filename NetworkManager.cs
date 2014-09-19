@@ -187,14 +187,19 @@ namespace FlatRedNetwork
         /// </summary>
         public void DeadReckon()
         {
+            int reckonCount = 0;
+
             // NOTE: not sure about this idea: Entity owner initiates dead reckoning instead of server
             for(int i = 0; i < mEntities.Count; i++)
             {
                 if(mEntities[i].OwnerId == NetworkId)
                 {
                     SendDataMessage(mEntities[i], NetworkMessageType.Reckoning);
+                    reckonCount++;
                 }
             }
+
+            mLog.Info("Sent reckoning messages: " + reckonCount);
         }
 
         /// <summary>
@@ -211,7 +216,7 @@ namespace FlatRedNetwork
             }
             else
             {
-                SendDataMessage(0, NetworkId, initialState, NetworkMessageType.Create);
+                SendDataMessage(GetUniqueEntityId(), NetworkId, initialState, NetworkMessageType.Create);
             }
         }
 
@@ -225,7 +230,7 @@ namespace FlatRedNetwork
         {
             if(Role == NetworkRole.Server)
             {
-                DestroyEntity(entity.EntityId);
+                DestroyEntity(entity.EntityId, entity.OwnerId);
             }
             else
             {
@@ -243,7 +248,7 @@ namespace FlatRedNetwork
         {
             if(Role == NetworkRole.Server)
             {
-                UpdateEntity(entity.EntityId, entity.GetState(), true, ServerTime);
+                UpdateEntity(entity.EntityId, entity.OwnerId, entity.GetState(), true, ServerTime);
             }
             else
             {
@@ -270,7 +275,7 @@ namespace FlatRedNetwork
 #if DEBUG
             // Note: these only exist on Lidgren in DEBUG mode
             config.SimulatedLoss = Configuration.SimulatedLoss;
-            config.SimulatedMinimumLatency = Configuration.SimulatedMinimumLatency;
+            config.SimulatedMinimumLatency = Configuration.SimulatedMinimumLatencySeconds;
             config.SimulatedRandomLatency = Configuration.SimulatedRandomLatencySeconds;
             config.SimulatedDuplicatesChance = Configuration.SimulatedDuplicateChance;
 #endif
@@ -339,21 +344,16 @@ namespace FlatRedNetwork
             switch(netMsg.Action)
             {
                 case NetworkMessageType.Create :
-                    // Server creates EntityId on new entities
-                    if(Role == NetworkRole.Server)
-                    {
-                        netMsg.EntityId = GetUniqueEntityId();
-                    }
                     CreateEntity(netMsg.OwnerId, netMsg.EntityId, netMsg.Payload, netMsg.MessageSentTime);
                     break;
                 case NetworkMessageType.Destroy :
                     // TODO: do something with time here?
-                    DestroyEntity(netMsg.EntityId);
+                    DestroyEntity(netMsg.EntityId, netMsg.OwnerId);
                     break;
                 case NetworkMessageType.Update :
                 case NetworkMessageType.Reckoning :
                     bool isReckoning = netMsg.Action == NetworkMessageType.Reckoning;
-                    UpdateEntity(netMsg.EntityId, netMsg.Payload, isReckoning, netMsg.MessageSentTime);
+                    UpdateEntity(netMsg.EntityId, netMsg.OwnerId, netMsg.Payload, isReckoning, netMsg.MessageSentTime);
                     break;
                 default:
                     throw new FlatRedNetworkException("Message type not implemented: " + netMsg.Action.ToString());
@@ -370,7 +370,7 @@ namespace FlatRedNetwork
         private void CreateEntity(long ownerId, long entityId, object payload, double time)
         {
             // check if already exists.
-            INetworkEntity targetEntity = mEntities.Where(e => e.EntityId == entityId).SingleOrDefault();
+            INetworkEntity targetEntity = mEntities.Where(e => e.EntityId == entityId && e.OwnerId == ownerId).SingleOrDefault();
 
             if(targetEntity == null)
             {
@@ -393,9 +393,11 @@ namespace FlatRedNetwork
         /// Called when a Destroy message has arrived, destroys an entity.
         /// </summary>
         /// <param name="entityId">The unique ID of the entity to be destroyed</param>
-        private void DestroyEntity(long entityId)
+        private void DestroyEntity(long entityId, long ownerId)
         {
-            INetworkEntity targetEntity = mEntities.Where(e => e.EntityId == entityId).SingleOrDefault();
+            BroadcastIfServer(entityId, ownerId, null, NetworkMessageType.Destroy);
+
+            INetworkEntity targetEntity = mEntities.Where(e => e.EntityId == entityId && e.OwnerId == ownerId).SingleOrDefault();
             if(targetEntity != null)
             {
                 mEntities.Remove(targetEntity);
@@ -405,8 +407,6 @@ namespace FlatRedNetwork
             {
                 mLog.Warning("Couldn't find entity marked for destruction: " + entityId);
             }
-
-            BroadcastIfServer(entityId, targetEntity.OwnerId, null, NetworkMessageType.Destroy);
         }
 
         /// <summary>
@@ -416,16 +416,20 @@ namespace FlatRedNetwork
         /// <param name="payload">The object that will be used to apply the entity's starting state.</param>
         /// <param name="isReckoning">True if this is a reckoning update.</param>
         /// <param name="time">The time the message was sent, used for projecting the state to current time.</param>
-        private void UpdateEntity(long entityId, object payload, bool isReckoning, double time)
+        private void UpdateEntity(long entityId, long ownerId, object payload, bool isReckoning, double time)
         {
-            INetworkEntity targetEntity = mEntities.Where(e => e.EntityId == entityId).SingleOrDefault();
+            INetworkEntity targetEntity = mEntities.Where(e => e.EntityId == entityId && e.OwnerId == ownerId).SingleOrDefault();
 
             // TODO: automatically create entity?
             // ignore if null, entity creation message may not have arrived
             if(targetEntity != null)
             {
                 targetEntity.UpdateState(payload, time, isReckoning);
-                BroadcastIfServer(entityId, targetEntity.OwnerId, payload, NetworkMessageType.Update);
+
+                BroadcastIfServer(entityId, targetEntity.OwnerId, payload,
+                    isReckoning ? 
+                    NetworkMessageType.Update :
+                    NetworkMessageType.Reckoning);
             }
             else
             {
@@ -521,7 +525,7 @@ namespace FlatRedNetwork
                     SendDataMessage(entity, NetworkMessageType.Destroy);
                     if(Role == NetworkRole.Server)
                     {
-                        DestroyEntity(entity.EntityId);
+                        DestroyEntity(entity.EntityId, ownerId);
                     }
                 }
             }
@@ -535,7 +539,7 @@ namespace FlatRedNetwork
         /// <param name="action">The type of message to send.</param>
         /// <param name="method">Delivery method.</param>
         /// <param name="recipient">The recipient connection. Will send to all if null.</param>
-        private void SendDataMessage(INetworkEntity entity, NetworkMessageType action, NetDeliveryMethod method = NetDeliveryMethod.ReliableSequenced, NetConnection recipient = null)
+        private void SendDataMessage(INetworkEntity entity, NetworkMessageType action, NetConnection recipient = null)
         {
             if(Role != NetworkRole.Server && entity.OwnerId != NetworkId)
             {
@@ -543,7 +547,7 @@ namespace FlatRedNetwork
             }
 
             object payload = entity.GetState();
-            SendDataMessage(entity.EntityId, entity.OwnerId, payload, action, method, recipient);
+            SendDataMessage(entity.EntityId, entity.OwnerId, payload, action, recipient);
         }
 
         /// <summary>
@@ -555,10 +559,26 @@ namespace FlatRedNetwork
         /// <param name="action">The type of message that determines the ultimate action taken.</param>
         /// <param name="method">The delivery method.</param>
         /// <param name="recipient"></param>
-        private void SendDataMessage(long entityId, long ownerId, object payload, NetworkMessageType action, NetDeliveryMethod method = NetDeliveryMethod.ReliableSequenced, NetConnection recipient = null)
+        private void SendDataMessage(long entityId, long ownerId, object payload, NetworkMessageType action, NetConnection recipient = null)
         {
             int payloadTypeId = -1;
             Type type;
+            NetDeliveryMethod method;
+
+            switch(action)
+            {
+                case NetworkMessageType.Create :
+                case NetworkMessageType.Destroy :
+                case NetworkMessageType.Reckoning:
+                    method = NetDeliveryMethod.ReliableOrdered;
+                    break;
+                case NetworkMessageType.Update :
+                    method = NetDeliveryMethod.UnreliableSequenced;
+                    break;
+                default :
+                    method = NetDeliveryMethod.UnreliableSequenced;
+                    break;
+            }
 
             if(payload != null)
             {
