@@ -32,12 +32,12 @@ namespace FlatRedNetwork
         public float SimulatedLoss { get; set; }
 
         /// <summary>
-        /// Simulated one-way latency for sent packets
+        /// Simulated one-way latency for sent packets in seconds.
         /// </summary>
-        public float SimulatedMinimumLatency { get; set; }
+        public float SimulatedMinimumLatencySeconds { get; set; }
 
         /// <summary>
-        /// Additional random latency in seconds
+        /// Additional random latency in seconds.
         /// </summary>
         public float SimulatedRandomLatencySeconds { get; set; }
 
