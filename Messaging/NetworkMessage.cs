@@ -43,22 +43,25 @@ namespace FlatRedNetwork.Messaging
             Action = (NetworkMessageType)msg.ReadByte();
             OwnerId = msg.ReadInt64();
             EntityId = msg.ReadInt64();
-            PayloadTypeId = msg.ReadByte();
+            PayloadTypeId = msg.ReadInt32();
 
-            try
-            {
-                Type payloadType = NetworkManager.EntityStateTypes[PayloadTypeId];
-                Payload = Activator.CreateInstance(payloadType);                
-                msg.ReadAllFields(Payload);
-                msg.ReadAllProperties(Payload);
-            }
-            catch(NetException ex)
-            {
-                throw new FlatRedNetworkException("Error reading entity state from network message.", ex);
-            }
-            catch(SystemException ex)
-            {
-                throw new FlatRedNetworkException("Error instantiating type.", ex);
+            // Destroy messages have no payload type, only an EntityId
+            if(Action != NetworkMessageType.Destroy) {
+                try
+                {
+                    Type payloadType = NetworkManager.EntityStateTypes[PayloadTypeId];
+                    Payload = Activator.CreateInstance(payloadType);
+                    msg.ReadAllFields(Payload);
+                    msg.ReadAllProperties(Payload);
+                }
+                catch(NetException ex)
+                {
+                    throw new FlatRedNetworkException("Error reading entity state from network message.", ex);
+                }
+                catch(SystemException ex)
+                {
+                    throw new FlatRedNetworkException("Error instantiating type.", ex);
+                }
             }
         }
 
@@ -75,7 +78,7 @@ namespace FlatRedNetwork.Messaging
             msg.Write((byte)Action);
             msg.Write(OwnerId);
             msg.Write(EntityId);
-            msg.Write((byte)PayloadTypeId);
+            msg.Write(PayloadTypeId);
 
             try
             {
