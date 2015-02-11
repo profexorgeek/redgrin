@@ -405,7 +405,7 @@ namespace FlatRedNetwork
             }
             else
             {
-                mLog.Warning("Couldn't find entity marked for destruction: " + entityId);
+                mLog.Debug("Couldn't find entity marked for destruction: " + entityId);
             }
         }
 
@@ -433,7 +433,7 @@ namespace FlatRedNetwork
             }
             else
             {
-                mLog.Warning("Couldn't find entity to update: " + entityId);
+                mLog.Debug("Couldn't find entity to update: " + entityId);
             }
         }
 
