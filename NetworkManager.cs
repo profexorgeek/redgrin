@@ -15,6 +15,7 @@ namespace FlatRedNetwork
     {
         /// <summary>
         /// The role of this instance on the network
+        /// Used to dictate client vs server behavior
         /// </summary>
         public NetworkRole Role { get; private set; }
 
@@ -52,7 +53,8 @@ namespace FlatRedNetwork
         
         /// <summary>
         /// The current time for the server.
-        /// Useful as a consistent timeline for interpolating between client and server states.
+        /// Useful as a consistent timeline for projecting physics
+        /// based on latency.
         /// </summary>
         public double ServerTime
         {
@@ -135,13 +137,15 @@ namespace FlatRedNetwork
         public NetworkManager(NetworkConfiguration config, ILogger log = null)
         {
             Configuration = config;
+            // if no logger was provided, use NullLogger
             mLog = log ?? new NullLogger();
             EntityStateTypes = config.EntityStateTypes;
         }
 
         /// <summary>
         /// Reads any messages in the queue and updates Entities accordingly.
-        /// Usually called in the game loop
+        /// Usually called in the game loop.
+        /// Read messages are recycled at each iteration.
         /// </summary>
         public void Update()
         {
@@ -274,6 +278,7 @@ namespace FlatRedNetwork
 
 #if DEBUG
             // Note: these only exist on Lidgren in DEBUG mode
+            // Allows simulation of slow/problematic networks
             config.SimulatedLoss = Configuration.SimulatedLoss;
             config.SimulatedMinimumLatency = Configuration.SimulatedMinimumLatencySeconds;
             config.SimulatedRandomLatency = Configuration.SimulatedRandomLatencySeconds;
@@ -497,7 +502,8 @@ namespace FlatRedNetwork
 
         /// <summary>
         /// Sends a Create message for all entities in the local collection.
-        /// This should generally only be called in Server mode.
+        /// This should generally only be called in Server mode when a new
+        /// client connects
         /// </summary>
         /// <param name="recipient">An individual receipient.
         /// If not supplied, the message will be sent to all connections.</param>
@@ -511,7 +517,7 @@ namespace FlatRedNetwork
 
         /// <summary>
         /// Sends a Destroy message for all entities owned by a specific NetworkId.
-        /// Usually called in Server mode when a client disconnects.
+        /// Usually called in Server mode when a client disconnects to update other clients
         /// </summary>
         /// <param name="ownerId">The OwnerId of entities to destroy.</param>
         private void DestroyAllOwnedById(long ownerId)
@@ -541,6 +547,7 @@ namespace FlatRedNetwork
         /// <param name="recipient">The recipient connection. Will send to all if null.</param>
         private void SendDataMessage(INetworkEntity entity, NetworkMessageType action, NetConnection recipient = null)
         {
+            // clients can't force a message for an entity they don't own
             if(Role != NetworkRole.Server && entity.OwnerId != NetworkId)
             {
                 throw new FlatRedNetworkException("Cannot send an update for an entity that is not owned by this client!");
@@ -558,7 +565,7 @@ namespace FlatRedNetwork
         /// <param name="payload">The state describing changes to the entity.</param>
         /// <param name="action">The type of message that determines the ultimate action taken.</param>
         /// <param name="method">The delivery method.</param>
-        /// <param name="recipient"></param>
+        /// <param name="recipient">The recipient connection. Will send to all if null.</param>
         private void SendDataMessage(long entityId, long ownerId, object payload, NetworkMessageType action, NetConnection recipient = null)
         {
             int payloadTypeId = -1;
@@ -567,11 +574,13 @@ namespace FlatRedNetwork
 
             switch(action)
             {
+                // critical messages should be guaranteed delivery and in sequence
                 case NetworkMessageType.Create :
                 case NetworkMessageType.Destroy :
                 case NetworkMessageType.Reckoning:
                     method = NetDeliveryMethod.ReliableOrdered;
                     break;
+                // general updates can fail, reckoning cycle will correct missed messages
                 case NetworkMessageType.Update :
                     method = NetDeliveryMethod.UnreliableSequenced;
                     break;
@@ -584,6 +593,7 @@ namespace FlatRedNetwork
             {
                 try
                 {
+                    // get the type and find it's ID in the config enumeration
                     type = payload.GetType();
                     payloadTypeId = Configuration.EntityStateTypes.IndexOf(type);
                 }
@@ -592,6 +602,7 @@ namespace FlatRedNetwork
                     throw new FlatRedNetworkException("Failed to get entity state.", ex);
                 }
 
+                // TODO: Not a fan of the negative type ID meaning "missing" - better solution here?
                 if(payloadTypeId == -1)
                 {
                     throw new FlatRedNetworkException("Failed to find ID for type: " + type.ToString());
@@ -629,9 +640,13 @@ namespace FlatRedNetwork
             }
         }
 
+        /// <summary>
+        /// Gets a unique ID for assignment to an entity.
+        /// </summary>
+        /// <returns>Long integer</returns>
         private long GetUniqueEntityId()
         {
-            // TODO: handle max long ID? God forbid someone makes a game that big with this library...
+            // TODO: handle max long ID?
             long id = mEntityId;
             mEntityId++;
             return id;

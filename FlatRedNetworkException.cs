@@ -6,6 +6,10 @@ using System.Threading.Tasks;
 
 namespace FlatRedNetwork
 {
+    /// <summary>
+    /// Custom exception type for this library. Allows catching
+    /// of network-specific exceptions.
+    /// </summary>
     public class FlatRedNetworkException : SystemException
     {
         public FlatRedNetworkException(string message)

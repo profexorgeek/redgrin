@@ -8,6 +8,9 @@ using System.Threading.Tasks;
 
 namespace FlatRedNetwork.Messaging
 {
+    /// <summary>
+    /// A message capable of transferring almost any type of data across the network.
+    /// </summary>
     internal class NetworkMessage
     {
         public double MessageSentTime { get; set; }
@@ -33,7 +36,8 @@ namespace FlatRedNetwork.Messaging
         }
 
         /// <summary>
-        /// Attempts to populate properties from an incoming message.
+        /// Populates message properties from an incoming lidgren message
+        /// Uses reflection to create and populate a payload object
         /// </summary>
         /// <param name="msg">The message to parse.</param>
         public void Decode(NetIncomingMessage msg)
@@ -51,6 +55,8 @@ namespace FlatRedNetwork.Messaging
                 {
                     Type payloadType = NetworkManager.EntityStateTypes[PayloadTypeId];
                     Payload = Activator.CreateInstance(payloadType);
+
+                    // Lidgren methods automatically read correct type for field types via reflection
                     msg.ReadAllFields(Payload);
                     msg.ReadAllProperties(Payload);
                 }
@@ -66,7 +72,9 @@ namespace FlatRedNetwork.Messaging
         }
 
         /// <summary>
-        /// 
+        /// Serializes this message object into the provided outgoing lidgren message.
+        /// Requires server time to mark when this message was prepared for sending.
+        /// Uses reflection to serialize fields and properties from the payload object.
         /// </summary>
         /// <param name="msg"></param>
         /// <param name="serverTime"></param>
@@ -74,7 +82,7 @@ namespace FlatRedNetwork.Messaging
         {
             MessageSentTime = serverTime;
 
-            msg.Write(serverTime);
+            msg.Write(MessageSentTime);
             msg.Write((byte)Action);
             msg.Write(OwnerId);
             msg.Write(EntityId);
@@ -82,6 +90,7 @@ namespace FlatRedNetwork.Messaging
 
             try
             {
+                // Lidgren methods automatically write correct type for field types via reflection
                 msg.WriteAllFields(Payload);
                 msg.WriteAllProperties(Payload);
             }
@@ -95,7 +104,12 @@ namespace FlatRedNetwork.Messaging
             }
         }
 
-
+        /// <summary>
+        /// Automatically checks if payload is valid instance of the provided type and returns it.
+        /// Throws an exception if the payload is not the correct type.
+        /// </summary>
+        /// <typeparam name="T">The type the payload is expected to be</typeparam>
+        /// <returns>The payload as the provided type</returns>
         public T GetPayloadAsType<T>()
         {
             if(!(Payload is T))

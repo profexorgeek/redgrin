@@ -6,6 +6,10 @@ using System.Threading.Tasks;
 
 namespace FlatRedNetwork.Logging
 {
+    /// <summary>
+    /// A basic logging interface the library
+    /// uses to log messages at different levels.
+    /// </summary>
     public interface ILogger
     {
         void Debug(string message);

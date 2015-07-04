@@ -8,31 +8,40 @@ using System.Threading.Tasks;
 namespace FlatRedNetwork
 {
     /// <summary>
-    /// An entity that is updated across a network
+    /// An entity that is updated across a network.
+    /// 
+    /// Entities have an owner, an ID and some object
+    /// that describes the state of an entity. The 
+    /// network manager will call GetState to 
+    /// 
     /// </summary>
     public interface INetworkEntity
     {
         /// <summary>
-        /// The network ID for the client that controls this entity
+        /// The network ID for the client that "owns" this entity.
         /// </summary>
         long OwnerId { get; set; }
 
         /// <summary>
-        /// The unique ID for this entity. This will be set automatically by the NetworkManager and
+        /// The unique ID for this entity across all network peers.
+        /// This will be set automatically by the NetworkManager and 
         /// should not be changed manually at runtime.
         /// </summary>
         long EntityId { get; set; }
 
         /// <summary>
-        /// Gets a transferrable object from the INetworkEntity
+        /// Gets a transferrable object from the INetworkEntity.
+        /// Called by the NetworkManager when broadcasting this Entity's
+        /// current state across the network.
         /// </summary>
-        /// <returns>An DTO describing an entity state</returns>
+        /// <returns>A generic object describing an entity state</returns>
         object GetState();
 
         /// <summary>
-        /// Applies a state from the network to the local entity
+        /// Applies a state from the network to the local entity. Usually called when
+        /// an update is received from the network for this EntityId
         /// </summary>
-        /// <param name="entityState">A DTO describing an entity state </param>
+        /// <param name="entityState">A generic object describing an entity state </param>
         void UpdateState(object entityState, double stateTime, bool isReckoningState = false);
     }
 }

@@ -20,8 +20,12 @@ namespace FlatRedNetwork
 
         /// <summary>
         /// A list of state types with a numerical index.
-        /// Used to pass type along the wire as a minimum size.
-        /// List is used instead of enum for implementation flexibility
+        /// Using a list allows network to pass a very small
+        /// integer value describing message payload instead of
+        /// a fully-qualified type string.
+        /// 
+        /// NOTE: Every EntityState that will be transferred through the network
+        /// must be enumerated in the config.
         /// </summary>
         public List<Type> EntityStateTypes { get; set; }
 
