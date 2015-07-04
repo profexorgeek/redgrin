@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FlatRedNetwork.Messaging
+namespace RedGrin.Messaging
 {
     /// <summary>
     /// A message capable of transferring almost any type of data across the network.
@@ -62,11 +62,11 @@ namespace FlatRedNetwork.Messaging
                 }
                 catch(NetException ex)
                 {
-                    throw new FlatRedNetworkException("Error reading entity state from network message.", ex);
+                    throw new RedGrinException("Error reading entity state from network message.", ex);
                 }
                 catch(SystemException ex)
                 {
-                    throw new FlatRedNetworkException("Error instantiating type.", ex);
+                    throw new RedGrinException("Error instantiating type.", ex);
                 }
             }
         }
@@ -96,11 +96,11 @@ namespace FlatRedNetwork.Messaging
             }
             catch(NetException ex)
             {
-                throw new FlatRedNetworkException("Error writing entity state to network message.", ex);
+                throw new RedGrinException("Error writing entity state to network message.", ex);
             }
             catch(SystemException ex)
             {
-                throw new FlatRedNetworkException("Unknown message error.", ex);
+                throw new RedGrinException("Unknown message error.", ex);
             }
         }
 
@@ -115,7 +115,7 @@ namespace FlatRedNetwork.Messaging
             if(!(Payload is T))
             {
                 string msg = string.Format("Could not cast {0} as {1}", Payload.GetType(), typeof(T));
-                throw new FlatRedNetworkException(msg);
+                throw new RedGrinException(msg);
             }
 
             return (T)Payload;

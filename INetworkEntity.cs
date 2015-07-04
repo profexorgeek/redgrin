@@ -1,11 +1,11 @@
-﻿using FlatRedNetwork.Messaging;
+﻿using RedGrin.Messaging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FlatRedNetwork
+namespace RedGrin
 {
     /// <summary>
     /// An entity that is updated across a network.

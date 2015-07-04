@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FlatRedNetwork.Logging
+namespace RedGrin.Logging
 {
     /// <summary>
     /// Default ILogger instance, swallows all logs.

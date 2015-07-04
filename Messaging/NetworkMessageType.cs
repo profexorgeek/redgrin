@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace FlatRedNetwork.Messaging
+namespace RedGrin.Messaging
 {
     /// <summary>
     /// The types of message the network is capable of sending.

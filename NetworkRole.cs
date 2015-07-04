@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace FlatRedNetwork
+namespace RedGrin
 {
     /// <summary>
     /// The roles supported for peers on the network

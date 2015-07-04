@@ -7,7 +7,7 @@
     <ProjectGuid>{9A4FD6E3-7795-4C93-B670-7BE2C3DC8639}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>FlatRedNetwork</RootNamespace>
+    <RootNamespace>RedGrin</RootNamespace>
     <AssemblyName>FlatRedNetwork</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>

@@ -4,21 +4,21 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FlatRedNetwork
+namespace RedGrin
 {
     /// <summary>
     /// Custom exception type for this library. Allows catching
     /// of network-specific exceptions.
     /// </summary>
-    public class FlatRedNetworkException : SystemException
+    public class RedGrinException : SystemException
     {
-        public FlatRedNetworkException(string message)
+        public RedGrinException(string message)
             : base(message)
         {
 
         }
 
-        public FlatRedNetworkException(string message, Exception innerException)
+        public RedGrinException(string message, Exception innerException)
             : base(message, innerException)
         {
 

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FlatRedNetwork.Logging
+namespace RedGrin.Logging
 {
     /// <summary>
     /// A basic logging interface the library

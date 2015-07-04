@@ -1,5 +1,5 @@
-﻿using FlatRedNetwork.Logging;
-using FlatRedNetwork.Messaging;
+﻿using RedGrin.Logging;
+using RedGrin.Messaging;
 using Lidgren.Network;
 using System;
 using System.Collections.Generic;
@@ -9,7 +9,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace FlatRedNetwork
+namespace RedGrin
 {
     public class NetworkManager
     {
@@ -33,7 +33,7 @@ namespace FlatRedNetwork
             {
                 if(mNetwork == null)
                 {
-                    throw new FlatRedNetworkException("Attempted to get NetworkId before Network was initialized.");
+                    throw new RedGrinException("Attempted to get NetworkId before Network was initialized.");
                 }
                 return mNetwork.UniqueIdentifier;
             }
@@ -89,7 +89,7 @@ namespace FlatRedNetwork
             {
                 if(mGameArena == null)
                 {
-                    throw new FlatRedNetworkException("You must pass a reference to an INetworkArena before any entity information can be exchanged.");
+                    throw new RedGrinException("You must pass a reference to an INetworkArena before any entity information can be exchanged.");
                 }
                 return mGameArena;
             }
@@ -316,7 +316,7 @@ namespace FlatRedNetwork
                 {
                     string errorMessage = "Bad server address.";
                     mLog.Error(errorMessage);
-                    throw new FlatRedNetworkException(errorMessage);
+                    throw new RedGrinException(errorMessage);
                 }
                 mNetwork.Connect(address, Configuration.ApplicationPort);
                 // TODO: set specific server connection variable here?
@@ -325,7 +325,7 @@ namespace FlatRedNetwork
             {
                 string errorMessage = "Cannot connect while running as Server.";
                 mLog.Error(errorMessage);
-                throw new FlatRedNetworkException(errorMessage);
+                throw new RedGrinException(errorMessage);
             }
         }
 
@@ -361,7 +361,7 @@ namespace FlatRedNetwork
                     UpdateEntity(netMsg.EntityId, netMsg.OwnerId, netMsg.Payload, isReckoning, netMsg.MessageSentTime);
                     break;
                 default:
-                    throw new FlatRedNetworkException("Message type not implemented: " + netMsg.Action.ToString());
+                    throw new RedGrinException("Message type not implemented: " + netMsg.Action.ToString());
             }
         }
 
@@ -550,7 +550,7 @@ namespace FlatRedNetwork
             // clients can't force a message for an entity they don't own
             if(Role != NetworkRole.Server && entity.OwnerId != NetworkId)
             {
-                throw new FlatRedNetworkException("Cannot send an update for an entity that is not owned by this client!");
+                throw new RedGrinException("Cannot send an update for an entity that is not owned by this client!");
             }
 
             object payload = entity.GetState();
@@ -599,13 +599,13 @@ namespace FlatRedNetwork
                 }
                 catch(Exception ex)
                 {
-                    throw new FlatRedNetworkException("Failed to get entity state.", ex);
+                    throw new RedGrinException("Failed to get entity state.", ex);
                 }
 
                 // TODO: Not a fan of the negative type ID meaning "missing" - better solution here?
                 if(payloadTypeId == -1)
                 {
-                    throw new FlatRedNetworkException("Failed to find ID for type: " + type.ToString());
+                    throw new RedGrinException("Failed to find ID for type: " + type.ToString());
                 }
             }
 
@@ -636,7 +636,7 @@ namespace FlatRedNetwork
                     mNetwork.SendMessage(outgoingMessage, server, method);
                     break;
                 default:
-                    throw new FlatRedNetworkException("Attempted to send message as an unsupported role: " + Role.ToString());
+                    throw new RedGrinException("Attempted to send message as an unsupported role: " + Role.ToString());
             }
         }
 
