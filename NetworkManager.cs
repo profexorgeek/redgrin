@@ -109,7 +109,7 @@ namespace RedGrin
         /// <summary>
         /// Master list of networked entities
         /// </summary>
-        private List<INetworkEntity> mEntities;
+        private List<INetworkEntity> mEntities = new List<INetworkEntity>();
 
         /// <summary>
         /// The logger instance that will be used to log messages.
@@ -193,14 +193,10 @@ namespace RedGrin
         {
             int reckonCount = 0;
 
-            // NOTE: not sure about this idea: Entity owner initiates dead reckoning instead of server
             for(int i = 0; i < mEntities.Count; i++)
             {
-                if(mEntities[i].OwnerId == NetworkId)
-                {
-                    SendDataMessage(mEntities[i], NetworkMessageType.Reckoning);
-                    reckonCount++;
-                }
+                SendDataMessage(mEntities[i], NetworkMessageType.Reckoning);
+                reckonCount++;
             }
 
             mLog.Info("Sent reckoning messages: " + reckonCount);
