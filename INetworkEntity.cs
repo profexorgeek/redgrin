@@ -42,6 +42,8 @@ namespace RedGrin
         /// an update is received from the network for this EntityId
         /// </summary>
         /// <param name="entityState">A generic object describing an entity state </param>
+        /// <param name="stateTime">The time this state was received, compare to current network time to understand elapsed time</param>
+        /// <param name="isReckoningState">Whether or not this is a dead reckoning update</param>
         void UpdateState(object entityState, double stateTime, bool isReckoningState = false);
     }
 }
