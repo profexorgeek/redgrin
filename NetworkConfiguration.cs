@@ -19,6 +19,12 @@ namespace RedGrin
         public int ApplicationPort { get; set; }
 
         /// <summary>
+        /// How frequently the network should perform a dead reckoning.
+        /// If less than or equal to zero, dead reckoning will not happen
+        /// </summary>
+        public float DeadReckonSeconds { get; set; }
+
+        /// <summary>
         /// A list of state types with a numerical index.
         /// Using a list allows network to pass a very small
         /// integer value describing message payload instead of

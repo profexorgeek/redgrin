@@ -14,6 +14,21 @@ namespace RedGrin
     public class NetworkManager
     {
         /// <summary>
+        /// The seconds the last update happened.
+        /// </summary>
+        private double lastUpdateTime;
+
+        /// <summary>
+        /// The elapsed time since the last Update cycle
+        /// </summary>
+        private double lastUpdateDelta;
+
+        /// <summary>
+        /// Seconds remaining until the next dead reckoning
+        /// </summary>
+        private double timeToDeadReckon;
+
+        /// <summary>
         /// The role of this instance on the network
         /// Used to dictate client vs server behavior
         /// </summary>
@@ -149,6 +164,9 @@ namespace RedGrin
         /// </summary>
         public void Update()
         {
+            lastUpdateDelta = ServerTime - lastUpdateTime;
+            lastUpdateTime = ServerTime;
+
             // early out, don't update if network not running
             // allows generic update call in main gameloop before
             // network has initialized
@@ -180,6 +198,16 @@ namespace RedGrin
                         break;
                 }
                 mNetwork.Recycle(msg);
+            }
+
+            if (Role == NetworkRole.Server && Configuration.DeadReckonSeconds > 0)
+            {
+                timeToDeadReckon -= lastUpdateDelta;
+                if(timeToDeadReckon <= 0)
+                {
+                    DeadReckon();
+                    timeToDeadReckon = Configuration.DeadReckonSeconds;
+                }
             }
         }
 
