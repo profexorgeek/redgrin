@@ -11,8 +11,12 @@ using System.Threading.Tasks;
 
 namespace RedGrin
 {
+
     public class NetworkManager
     {
+        public event NetworkEvent Connected;
+        public event NetworkEvent Disconnected;
+
         /// <summary>
         /// The seconds the last update happened.
         /// </summary>
@@ -496,6 +500,8 @@ namespace RedGrin
                 case NetConnectionStatus.Connected :
                     mLog.Info("Connected to: " + message.SenderEndPoint);
 
+                    Connected?.Invoke(message.SenderConnection.RemoteUniqueIdentifier);
+
                     // send all game objects to new peer
                     if(Role == NetworkRole.Server)
                     {
@@ -506,6 +512,9 @@ namespace RedGrin
 
                 case NetConnectionStatus.Disconnected:
                     mLog.Info("Disconnected.");
+
+                    // raise event
+                    Disconnected?.Invoke(message.SenderConnection.RemoteUniqueIdentifier);
 
                     // destroy all game objects owned by disconnected peer
                     if(Role == NetworkRole.Server)
