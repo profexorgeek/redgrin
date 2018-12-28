@@ -12,6 +12,7 @@ namespace RedGrin.Logging
     /// </summary>
     public interface ILogger
     {
+        LogLevels Level {get;set;}
         void Debug(string message);
         void Info(string message);
         void Warning(string message);

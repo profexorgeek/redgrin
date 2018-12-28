@@ -11,6 +11,8 @@ namespace RedGrin.Logging
     /// </summary>
     internal class NullLogger : ILogger
     {
+        public LogLevels Level { get; set; }
+
         public void Debug(string message)
         {
             // swallow message
