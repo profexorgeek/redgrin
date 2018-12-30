@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("FlatRedNetwork")]
-[assembly: AssemblyDescription("Wrapper for Lidgren Gen3 to make it easy to implement networking in the FlatRedBall game engine.")]
+[assembly: AssemblyTitle("RedGrin")]
+[assembly: AssemblyDescription("Wrapper for Lidgren Gen3 to make it easier to implement multiplayer networking in most games.")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Justin Johnson")]
 [assembly: AssemblyProduct("FlatRedNetwork")]
-[assembly: AssemblyCopyright("Copyright Justin Johnson, 2014")]
+[assembly: AssemblyCopyright("Copyright Justin Johnson, 2019")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
