@@ -13,6 +13,8 @@ namespace RedGrin.Messaging
     /// </summary>
     internal class NetworkMessage
     {
+        const BindingFlags DefaultBinding = BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy;
+
         public double MessageSentTime { get; set; }
         public long SenderId { get; set; }
         public long EntityId { get; set; }
@@ -57,8 +59,8 @@ namespace RedGrin.Messaging
                     Payload = Activator.CreateInstance(payloadType);
 
                     // Lidgren methods automatically read correct type for field types via reflection
-                    msg.ReadAllFields(Payload);
-                    msg.ReadAllProperties(Payload);
+                    msg.ReadAllFields(Payload, DefaultBinding);
+                    msg.ReadAllProperties(Payload, DefaultBinding);
                 }
                 catch(NetException ex)
                 {
@@ -91,8 +93,8 @@ namespace RedGrin.Messaging
             try
             {
                 // Lidgren methods automatically write correct type for field types via reflection
-                msg.WriteAllFields(Payload);
-                msg.WriteAllProperties(Payload);
+                msg.WriteAllFields(Payload, DefaultBinding);
+                msg.WriteAllProperties(Payload, DefaultBinding);
             }
             catch(NetException ex)
             {
