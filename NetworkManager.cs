@@ -248,7 +248,7 @@ namespace RedGrin
             }
             else
             {
-                SendDataMessage(GetUniqueEntityId(), NetworkId, initialState, NetworkMessageType.Create);
+                SendDataMessage(-1, NetworkId, initialState, NetworkMessageType.Create);
             }
         }
 
@@ -262,7 +262,7 @@ namespace RedGrin
         {
             if(Role == NetworkRole.Server)
             {
-                DestroyEntity(entity.EntityId, entity.OwnerId);
+                DestroyEntity(entity.EntityId);
             }
             else
             {
@@ -380,8 +380,7 @@ namespace RedGrin
                     CreateEntity(netMsg.OwnerId, netMsg.EntityId, netMsg.Payload, netMsg.MessageSentTime);
                     break;
                 case NetworkMessageType.Destroy :
-                    // TODO: do something with time here?
-                    DestroyEntity(netMsg.EntityId, netMsg.OwnerId);
+                    DestroyEntity(netMsg.EntityId);
                     break;
                 case NetworkMessageType.Update :
                 case NetworkMessageType.Reckoning :
@@ -402,8 +401,23 @@ namespace RedGrin
         /// <param name="time">The time the message was sent, used for projecting the state to current time.</param>
         private void CreateEntity(long ownerId, long entityId, object payload, double time)
         {
-            // check if already exists.
-            INetworkEntity targetEntity = mEntities.Where(e => e.EntityId == entityId && e.OwnerId == ownerId).SingleOrDefault();
+            // this is a brand new entity, get a new ID
+            if(entityId == -1)
+            {
+                if(Role == NetworkRole.Server)
+                {
+                    entityId = GetUniqueEntityId();
+                }
+                else
+                {
+                    var msg = "Something went wrong, client received bad entity ID.";
+                    mLog.Error(msg);
+                    throw new RedGrinException(msg);
+                }
+            }
+
+            // check entity with ID already exists
+            INetworkEntity targetEntity = mEntities.Where(e => e.EntityId == entityId).SingleOrDefault();
 
             if(targetEntity == null)
             {
@@ -411,7 +425,9 @@ namespace RedGrin
             }
             else
             {
-                mLog.Warning("Attempted to create entity for ID that already exists: " + entityId);
+                var msg = "Attempted to create entity for ID that already exists: " + entityId;
+                mLog.Error(msg);
+                throw new RedGrinException(msg);
             }
             
             targetEntity.OwnerId = ownerId;
@@ -426,15 +442,14 @@ namespace RedGrin
         /// Called when a Destroy message has arrived, destroys an entity.
         /// </summary>
         /// <param name="entityId">The unique ID of the entity to be destroyed</param>
-        private void DestroyEntity(long entityId, long ownerId)
+        private void DestroyEntity(long entityId)
         {
-            BroadcastIfServer(entityId, ownerId, null, NetworkMessageType.Destroy);
-
-            INetworkEntity targetEntity = mEntities.Where(e => e.EntityId == entityId && e.OwnerId == ownerId).SingleOrDefault();
-            if(targetEntity != null)
+            INetworkEntity target = mEntities.Where(e => e.EntityId == entityId).SingleOrDefault();
+            if (target != null)
             {
-                mEntities.Remove(targetEntity);
-                GameArena.RequestDestroyEntity(targetEntity);
+                BroadcastIfServer(target.EntityId, target.OwnerId, null, NetworkMessageType.Destroy);
+                mEntities.Remove(target);
+                GameArena.RequestDestroyEntity(target);
             }
             else
             {
@@ -564,7 +579,7 @@ namespace RedGrin
                     SendDataMessage(entity, NetworkMessageType.Destroy);
                     if(Role == NetworkRole.Server)
                     {
-                        DestroyEntity(entity.EntityId, ownerId);
+                        DestroyEntity(entity.EntityId);
                     }
                 }
             }
