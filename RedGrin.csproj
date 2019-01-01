@@ -66,7 +66,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="FlatRedNetworkException.cs" />
+    <Compile Include="RedGrinException.cs" />
     <Compile Include="INetworkArena.cs" />
     <Compile Include="Logging\ILogger.cs" />
     <Compile Include="INetworkEntity.cs" />
