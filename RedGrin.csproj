@@ -66,7 +66,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="INetState.cs" />
     <Compile Include="RedGrinException.cs" />
     <Compile Include="INetworkArena.cs" />
     <Compile Include="Logging\ILogger.cs" />
