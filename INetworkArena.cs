@@ -22,7 +22,7 @@ namespace RedGrin
         /// <param name="entityId">The unique ID of the entity to create</param>
         /// <param name="entityData">The initial state of the created entity</param>
         /// <returns>The created INetworkEntity, which will be tracked by the NetworkManager</returns>
-        INetworkEntity RequestCreateEntity(long ownerId, long entityId, object entityData);
+        INetworkEntity RequestCreateEntity(object entityData);
 
         /// <summary>
         /// Called by the network manager when a message is received to destroy an entity.

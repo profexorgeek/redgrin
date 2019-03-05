@@ -17,6 +17,19 @@ namespace RedGrin
         public event NetworkEvent Connected;
         public event NetworkEvent Disconnected;
 
+        static NetworkManager self;
+        public static NetworkManager Self
+        {
+            get
+            {
+                if(self == null)
+                {
+                    throw new InvalidOperationException("NetworkManager must first be constructed in a class such as Game1");
+                }
+                return self;
+            }
+        }
+
         /// <summary>
         /// The seconds the last update happened.
         /// </summary>
@@ -155,6 +168,7 @@ namespace RedGrin
         /// <param name="log">An ILogger to write messages to</param>
         public NetworkManager(NetworkConfiguration config, ILogger log = null)
         {
+            self = this;
             Configuration = config;
             // if no logger was provided, use NullLogger
             mLog = log ?? new NullLogger();
@@ -421,7 +435,7 @@ namespace RedGrin
 
             if(targetEntity == null)
             {
-                targetEntity = GameArena.RequestCreateEntity(ownerId, entityId, payload);
+                targetEntity = GameArena.RequestCreateEntity(payload);
             }
             else
             {
@@ -430,9 +444,9 @@ namespace RedGrin
                 throw new RedGrinException(msg);
             }
             
+            targetEntity.UpdateState(payload, time);
             targetEntity.OwnerId = ownerId;
             targetEntity.EntityId = entityId;
-            targetEntity.UpdateState(payload, time);
             mEntities.Add(targetEntity);
 
             BroadcastIfServer(entityId, ownerId, payload, NetworkMessageType.Create);
@@ -472,7 +486,10 @@ namespace RedGrin
             // ignore if null, entity creation message may not have arrived
             if(targetEntity != null)
             {
-                targetEntity.UpdateState(payload, time, isReckoning);
+                if(targetEntity.OwnerId != this.NetworkId || isReckoning)
+                {
+                    targetEntity.UpdateState(payload, time);
+                }
 
                 BroadcastIfServer(entityId, targetEntity.OwnerId, payload,
                     isReckoning ? 
@@ -603,6 +620,19 @@ namespace RedGrin
 
             object payload = entity.GetState();
             SendDataMessage(entity.EntityId, entity.OwnerId, payload, action, recipient);
+        }
+
+        public string GetLocalIpAddress()
+        {
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (var ip in host.AddressList)
+            {
+                if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                {
+                    return ip.ToString();
+                }
+            }
+            return null;
         }
 
         /// <summary>
