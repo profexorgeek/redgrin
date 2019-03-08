@@ -435,7 +435,7 @@ namespace RedGrin
 
             if(targetEntity == null)
             {
-                targetEntity = GameArena.RequestCreateEntity(payload);
+                targetEntity = GameArena.RequestCreateEntity(ownerId, payload);
             }
             else
             {
@@ -622,6 +622,7 @@ namespace RedGrin
             SendDataMessage(entity.EntityId, entity.OwnerId, payload, action, recipient);
         }
 
+        // from https://stackoverflow.com/questions/6803073/get-local-ip-address
         public string GetLocalIpAddress()
         {
             var host = Dns.GetHostEntry(Dns.GetHostName());
