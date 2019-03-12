@@ -24,7 +24,7 @@ namespace RedGrin
             {
                 if(self == null)
                 {
-                    throw new InvalidOperationException("NetworkManager must first be constructed in a class such as Game1");
+                    self = new NetworkManager();
                 }
                 return self;
             }
@@ -159,6 +159,11 @@ namespace RedGrin
         private INetworkArena mGameArena;
 
 
+        NetworkManager()
+        {
+
+        }
+            
         /// <summary>
         /// Instantiate the Network.
         /// WARNING: If no logger is provided, all messages will be swallowed.
@@ -166,7 +171,7 @@ namespace RedGrin
         /// <param name="config">Configuration for networking</param>
         /// <param name="arena">The game arena</param>
         /// <param name="log">An ILogger to write messages to</param>
-        public NetworkManager(NetworkConfiguration config, ILogger log = null)
+        public void Initialize(NetworkConfiguration config, ILogger log = null)
         {
             self = this;
             Configuration = config;
