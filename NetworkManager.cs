@@ -449,7 +449,7 @@ namespace RedGrin
                 throw new RedGrinException(msg);
             }
             
-            targetEntity.UpdateState(payload, time);
+            targetEntity.UpdateFromState(payload, time);
             targetEntity.OwnerId = ownerId;
             targetEntity.EntityId = entityId;
             mEntities.Add(targetEntity);
@@ -493,7 +493,7 @@ namespace RedGrin
             {
                 if(targetEntity.OwnerId != this.NetworkId || isReckoning)
                 {
-                    targetEntity.UpdateState(payload, time);
+                    targetEntity.UpdateFromState(payload, time);
                 }
 
                 BroadcastIfServer(entityId, targetEntity.OwnerId, payload,
