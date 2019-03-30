@@ -8,14 +8,22 @@ using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using System.Collections.ObjectModel;
 
 namespace RedGrin
 {
 
     public class NetworkManager
     {
+        #region Events
+
         public event NetworkEvent Connected;
         public event NetworkEvent Disconnected;
+
+        #endregion
+
+        public ObservableCollection<NetConnection> Connections
+        { get; private set; } = new ObservableCollection<NetConnection>();
 
         static NetworkManager self;
         public static NetworkManager Self
@@ -230,6 +238,22 @@ namespace RedGrin
                 {
                     DeadReckon();
                     timeToDeadReckon = Configuration.DeadReckonSeconds;
+                }
+            }
+
+
+            foreach(var internalConnection in mNetwork.Connections)
+            {
+                if(this.Connections.Contains(internalConnection) == false)
+                {
+                    this.Connections.Add(internalConnection);
+                }
+            }
+            for(int i = Connections.Count - 1; i > -1; i--)
+            {
+                if(mNetwork.Connections.Contains(Connections[i]) == false)
+                {
+                    Connections.RemoveAt(i);
                 }
             }
         }
@@ -489,6 +513,9 @@ namespace RedGrin
 
             // TODO: automatically create entity?
             // ignore if null, entity creation message may not have arrived
+
+            mLog?.Info($"Receiving update from {ownerId} to update entity {payload?.GetType()}");
+
             if(targetEntity != null)
             {
                 if(targetEntity.OwnerId != this.NetworkId || isReckoning)
