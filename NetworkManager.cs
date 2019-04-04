@@ -486,7 +486,7 @@ namespace RedGrin
 
             if(targetEntity == null)
             {
-                targetEntity = GameArena.RequestCreateEntity(ownerId, payload);
+                targetEntity = GameArena?.RequestCreateEntity(ownerId, payload);
             }
             else
             {
@@ -514,7 +514,7 @@ namespace RedGrin
             {
                 BroadcastIfServer(target.EntityId, target.OwnerId, null, NetworkMessageType.Destroy);
                 mEntities.Remove(target);
-                GameArena.RequestDestroyEntity(target);
+                GameArena?.RequestDestroyEntity(target);
             }
             else
             {
@@ -573,7 +573,7 @@ namespace RedGrin
                 throw new RedGrinException(msg);
             }
 
-            GameArena.HandleGenericMessage(payload, time);
+            GameArena?.HandleGenericMessage(payload, time);
 
             // NOTE: -1 as a magic constant isn't great but this enables us to send
             // non-entity messages without a major change in the current pattern
