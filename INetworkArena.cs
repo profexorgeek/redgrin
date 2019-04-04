@@ -31,5 +31,14 @@ namespace RedGrin
         /// </summary>
         /// <param name="entity">The entity to destroy.</param>
         void RequestDestroyEntity(INetworkEntity entity);
+
+        /// <summary>
+        /// Called by the network manager when a generic message is received. Generic
+        /// messages are not attached to a specific entity and may contain game state
+        /// or other meta data that the INetworkArena should handle.
+        /// </summary>
+        /// <param name="message">The message payload.</param>
+        /// <param name="messageTime">The time the message was sent.</param>
+        void HandleGenericMessage(object message, double messageTime);
     }
 }

@@ -332,6 +332,25 @@ namespace RedGrin
         }
 
         /// <summary>
+        /// If instance is server, applies the generic message and then broadcasts it to
+        /// clients. If instance is a client, sends the data message to the server.
+        /// </summary>
+        /// <param name="genericMessage">A message in the form of a registered state object not tied to a specific entity.</param>
+        public void RequestGenericMessage(object genericMessage)
+        {
+            if(Role == NetworkRole.Server)
+            {
+                ApplyGenericMessage(NetworkId, genericMessage, ServerTime);
+            }
+            else
+            {
+                // NOTE: -1 as a magic constant isn't great but this enables us to send
+                // non-entity messages without a major change in the current pattern
+                SendDataMessage(-1, NetworkId, genericMessage, NetworkMessageType.Generic);
+            }
+        }
+
+        /// <summary>
         /// Initializes the network according to the provided role
         /// </summary>
         /// <param name="role">The role to use</param>
@@ -419,6 +438,9 @@ namespace RedGrin
             NetworkMessage netMsg = new NetworkMessage(message);
             switch(netMsg.Action)
             {
+                case NetworkMessageType.Generic:
+                    ApplyGenericMessage(netMsg.OwnerId, netMsg.Payload, netMsg.MessageSentTime);
+                    break;
                 case NetworkMessageType.Create :
                     CreateEntity(netMsg.OwnerId, netMsg.EntityId, netMsg.Payload, netMsg.MessageSentTime);
                     break;
@@ -469,7 +491,7 @@ namespace RedGrin
             else
             {
                 var msg = "Attempted to create entity for ID that already exists: " + entityId;
-                mLog.Error(msg);
+                mLog?.Error(msg);
                 throw new RedGrinException(msg);
             }
             
@@ -532,6 +554,30 @@ namespace RedGrin
             {
                 mLog.Debug("Couldn't find entity to update: " + entityId);
             }
+        }
+
+        /// <summary>
+        /// Called when a generic message has arrived. Notifies game arena of message
+        /// </summary>
+        /// <param name="ownerId">The original broadcaster of the message</param>
+        /// <param name="payload">The message object</param>
+        /// <param name="time">The time the message was sent, used for projecting the state to current time.</param>
+        private void ApplyGenericMessage(long ownerId, object payload, double time)
+        {
+            mLog?.Info($"Received generic message from {ownerId}");
+
+            if(payload == null)
+            { 
+                var msg = "Bad or missing payload for generic message.";
+                mLog?.Error(msg);
+                throw new RedGrinException(msg);
+            }
+
+            GameArena.HandleGenericMessage(payload, time);
+
+            // NOTE: -1 as a magic constant isn't great but this enables us to send
+            // non-entity messages without a major change in the current pattern
+            BroadcastIfServer(-1, ownerId, payload, NetworkMessageType.Generic);
         }
 
         /// <summary>
