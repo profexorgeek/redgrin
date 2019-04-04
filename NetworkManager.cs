@@ -127,10 +127,6 @@ namespace RedGrin
         {
             get
             {
-                if(mGameArena == null)
-                {
-                    throw new RedGrinException("You must pass a reference to an INetworkArena before any entity information can be exchanged.");
-                }
                 return mGameArena;
             }
             set
