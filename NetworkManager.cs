@@ -373,6 +373,8 @@ namespace RedGrin
 
             mEntities = new List<INetworkEntity>();
 
+            config.Port = Configuration.ApplicationPort;
+
             switch(Role)
             {
                 case NetworkRole.Client :
@@ -380,7 +382,6 @@ namespace RedGrin
                     mLog.Info("Starting client.");
                     break;
                 case NetworkRole.Server :
-                    config.Port = Configuration.ApplicationPort;
                     mNetwork = new NetServer(config);
                     mLog.Info("Starting server on port:" + Configuration.ApplicationPort);
                     break;
