@@ -499,6 +499,18 @@ namespace RedGrin
             BroadcastIfServer(entityId, ownerId, payload, NetworkMessageType.Create);
         }
 
+        public void AddToEntities(INetworkEntity entityToAdd)
+        {
+#if DEBUG
+            if(mEntities.Contains(entityToAdd))
+            {
+                throw new InvalidOperationException("This entity is already part of the list, it can't be added again.");
+            }
+#endif
+            entityToAdd.EntityId = GetUniqueEntityId();
+            mEntities.Add(entityToAdd);
+        }
+
         /// <summary>
         /// Called when a Destroy message has arrived, destroys an entity.
         /// </summary>
@@ -542,9 +554,10 @@ namespace RedGrin
                 }
 
                 BroadcastIfServer(entityId, targetEntity.OwnerId, payload,
-                    isReckoning ? 
-                    NetworkMessageType.Update :
-                    NetworkMessageType.Reckoning);
+                    isReckoning ?
+                    NetworkMessageType.Reckoning :
+                    NetworkMessageType.Update 
+                    );
             }
             else
             {
