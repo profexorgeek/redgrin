@@ -269,7 +269,7 @@ namespace RedGrin
                 reckonCount++;
             }
 
-            mLog.Info("Sent reckoning messages: " + reckonCount);
+            mLog.Debug("Sent reckoning messages: " + reckonCount);
         }
 
         /// <summary>
@@ -395,7 +395,7 @@ namespace RedGrin
         public void Connect(string address)
         {
             ServerAddress = address;
-            mLog.Info("Connecting to: " + ServerAddress + ":" + Configuration.ApplicationPort);
+            mLog.Debug("Connecting to: " + ServerAddress + ":" + Configuration.ApplicationPort);
             if(Role == NetworkRole.Client)
             {
                 if(ServerAddress == null)
@@ -420,7 +420,7 @@ namespace RedGrin
         /// </summary>
         public void Disconnect()
         {
-            mLog.Info("Disconnecting...");
+            mLog.Debug("Disconnecting...");
             mNetwork.Shutdown("Disconnecting.");
         }
 
@@ -541,10 +541,7 @@ namespace RedGrin
         {
             INetworkEntity targetEntity = mEntities.Where(e => e.EntityId == entityId && e.OwnerId == ownerId).SingleOrDefault();
 
-            // TODO: automatically create entity?
-            // ignore if null, entity creation message may not have arrived
-
-            mLog?.Info($"Receiving update from {ownerId} to update entity {payload?.GetType()}");
+            mLog?.Debug($"Receiving update from {ownerId} to update entity {payload?.GetType()}");
 
             if(targetEntity != null)
             {
@@ -561,6 +558,7 @@ namespace RedGrin
             }
             else
             {
+                // ignore if null, entity creation message may not have arrived yet
                 mLog.Debug("Couldn't find entity to update: " + entityId);
             }
         }
