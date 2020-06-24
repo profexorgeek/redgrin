@@ -10,6 +10,7 @@ namespace RedGrin
     /// </summary>
     public enum NetworkRole
     {
+        None,
         Server,
         Client
     }
