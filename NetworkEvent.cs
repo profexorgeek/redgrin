@@ -5,5 +5,5 @@ using System.Text;
 
 namespace RedGrin
 {
-    public delegate void NetworkEvent(long entityId, object data = null);
+    public delegate void NetworkEvent(long id, object data = null);
 }
