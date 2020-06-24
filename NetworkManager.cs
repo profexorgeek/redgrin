@@ -57,7 +57,7 @@ namespace RedGrin
         /// The role of this instance on the network
         /// Used to dictate client vs server behavior
         /// </summary>
-        public NetworkRole Role { get; private set; }
+        public NetworkRole Role { get; private set; } = NetworkRole.None;
 
         /// <summary>
         /// The IPEndpoint for the Server
@@ -155,7 +155,7 @@ namespace RedGrin
         /// <summary>
         /// A counter used to get new IDs for entities
         /// </summary>
-        private long mEntityId;
+        private long entityId;
 
         /// <summary>
         /// A reference to the game arena
@@ -177,7 +177,6 @@ namespace RedGrin
         /// <param name="log">An ILogger to write messages to</param>
         public void Initialize(NetworkConfiguration config, ILogger log = null)
         {
-            self = this;
             Configuration = config;
             // if no logger was provided, use NullLogger
             mLog = log ?? new NullLogger();
@@ -350,7 +349,7 @@ namespace RedGrin
         /// Initializes the network according to the provided role
         /// </summary>
         /// <param name="role">The role to use</param>
-        public void Initialize(NetworkRole role)
+        public void Start(NetworkRole role)
         {
             Role = role;
 
@@ -814,8 +813,8 @@ namespace RedGrin
         private long GetUniqueEntityId()
         {
             // TODO: handle max long ID?
-            long id = mEntityId;
-            mEntityId++;
+            long id = entityId;
+            entityId++;
             return id;
         }
     }
