@@ -15,12 +15,16 @@ namespace RedGrin.Messaging
     {
         const BindingFlags DefaultBinding = BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy;
 
-        public double MessageSentTime { get; set; }
+        // not encoded, derived from the remote connection
         public long SenderId { get; set; }
-        public long EntityId { get; set; }
-        public long OwnerId { get; set; }
+
+        // Header properties encoded in every message
+        public double MessageSentTime { get; set; }
+        public NetworkMessageType MessageType { get; set; }
+        public long UniqueId { get; set; }
         public int PayloadTypeId { get; set; }
-        public NetworkMessageType Action { get; set; }
+
+        // The actual message data payload
         public object Payload { get; set; }
 
         /// <summary>
@@ -45,14 +49,15 @@ namespace RedGrin.Messaging
         public void Decode(NetIncomingMessage msg)
         {
             SenderId = msg.SenderConnection.RemoteUniqueIdentifier;
+
+            // read "header" properties
             MessageSentTime = msg.ReadDouble();
-            Action = (NetworkMessageType)msg.ReadByte();
-            OwnerId = msg.ReadInt64();
-            EntityId = msg.ReadInt64();
+            MessageType = (NetworkMessageType)msg.ReadByte();
+            UniqueId = msg.ReadInt64();
             PayloadTypeId = msg.ReadInt32();
 
             // Destroy messages have no payload type, only an EntityId
-            if(Action != NetworkMessageType.Destroy) {
+            if(MessageType != NetworkMessageType.Destroy) {
                 try
                 {
                     Type payloadType = NetworkManager.EntityStateTypes[PayloadTypeId];
@@ -84,10 +89,10 @@ namespace RedGrin.Messaging
         {
             MessageSentTime = serverTime;
 
+            // write "header" properties
             msg.Write(MessageSentTime);
-            msg.Write((byte)Action);
-            msg.Write(OwnerId);
-            msg.Write(EntityId);
+            msg.Write((byte)MessageType);
+            msg.Write(UniqueId);
             msg.Write(PayloadTypeId);
 
             try
