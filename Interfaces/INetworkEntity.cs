@@ -5,8 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RedGrin
+namespace RedGrin.Interfaces
 {
+
     /// <summary>
     /// An entity that is updated across a network.
     /// 
@@ -18,19 +19,15 @@ namespace RedGrin
     public interface INetworkEntity
     {
         /// <summary>
-        /// The network ID for the client that "owns" this entity.
+        /// This value encodes both the client ID that owns this object
+        /// and the objects ID to form a unique identifier across the
+        /// entire network
         /// </summary>
-        long OwnerId { get; set; }
+        ulong UniqueId { get; set; }
 
         /// <summary>
-        /// The unique ID for this entity across all network peers.
-        /// This will be set automatically by the NetworkManager and 
-        /// should not be changed manually at runtime.
-        /// </summary>
-        long EntityId { get; set; }
-
-        /// <summary>
-        /// Gets a transferrable object from the INetworkEntity.
+        /// Gets a transferrable object from the entity.
+        /// 
         /// Called by the NetworkManager when broadcasting this Entity's
         /// current state across the network.
         /// </summary>
