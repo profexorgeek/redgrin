@@ -20,7 +20,7 @@ namespace RedGrin.Messaging
         // Header properties encoded in every message
         public double MessageSentTime { get; set; }
         public NetworkMessageType MessageType { get; set; }
-        public ulong EntityId { get; set; }
+        public ulong Id { get; set; }
         public int PayloadTypeId { get; set; }
 
         // The actual message data payload
@@ -50,7 +50,7 @@ namespace RedGrin.Messaging
             // read "header" properties
             MessageSentTime = msg.ReadDouble();
             MessageType = (NetworkMessageType)msg.ReadByte();
-            EntityId = msg.ReadUInt64();
+            Id = msg.ReadUInt64();
             PayloadTypeId = msg.ReadInt32();
 
             // Destroy messages have no payload type, only an EntityId
@@ -89,7 +89,7 @@ namespace RedGrin.Messaging
             // write "header" properties
             msg.Write(MessageSentTime);
             msg.Write((byte)MessageType);
-            msg.Write(EntityId);
+            msg.Write(Id);
             msg.Write(PayloadTypeId);
 
             try
