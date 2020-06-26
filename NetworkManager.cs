@@ -19,10 +19,7 @@ namespace RedGrin
         public event NetworkEvent Connected;
         public event NetworkEvent Disconnected;
 
-        //public ObservableCollection<NetConnection> Connections
-        //{ get; private set; } = new ObservableCollection<NetConnection>();
-
-        Dictionary<byte, NetConnection> connections = new Dictionary<byte, NetConnection>();
+        Dictionary<byte, NetConnection> clientIdConnectionMap = new Dictionary<byte, NetConnection>();
 
         static NetworkManager self;
 
@@ -246,7 +243,7 @@ namespace RedGrin
                 }
                 network.Connect(address, Configuration.ApplicationPort);
 
-                
+
                 // TODO: set specific server connection variable here?
             }
             else
@@ -321,22 +318,6 @@ namespace RedGrin
                     timeToDeadReckon = Configuration.DeadReckonSeconds;
                 }
             }
-
-            // FIXME: what's up with this? Do we need to keep two collections in sync!?
-            //foreach (var internalConnection in network.Connections)
-            //{
-            //    if (!connections.Values.Contains(internalConnection))
-            //    {
-            //        this.Connections.Add(internalConnection);
-            //    }
-            //}
-            //for (int i = Connections.Count - 1; i > -1; i--)
-            //{
-            //    if (network.Connections.Contains(Connections[i]) == false)
-            //    {
-            //        Connections.RemoveAt(i);
-            //    }
-            //}
         }
 
         /// <summary>
@@ -427,15 +408,15 @@ namespace RedGrin
         /// <param name="genericMessage">A message in the form of a registered state object not tied to a specific entity.</param>
         public void RequestGenericMessage(object genericMessage)
         {
+            var id = GetUniqueEntityId();
             if (Role == NetworkRole.Server)
             {
-                ApplyGenericMessage(NetworkId, genericMessage, ServerTime);
+                
+                ApplyGenericMessage(id, genericMessage, ServerTime);
             }
             else
             {
-                // NOTE: 0 as a magic constant isn't great but this enables us to send
-                // non-entity messages without a major change in the current pattern
-                SendDataMessage(0, genericMessage, NetworkMessageType.Generic);
+                SendDataMessage(id, genericMessage, NetworkMessageType.Generic);
             }
         }
 
@@ -453,7 +434,7 @@ namespace RedGrin
             switch (netMsg.MessageType)
             {
                 case NetworkMessageType.Generic:
-                    ApplyGenericMessage(message.SenderConnection.RemoteUniqueIdentifier, netMsg.Payload, netMsg.MessageSentTime);
+                    ApplyGenericMessage(netMsg.EntityId, netMsg.Payload, netMsg.MessageSentTime);
                     break;
                 case NetworkMessageType.Create:
                     CreateEntity(netMsg.EntityId, netMsg.Payload, netMsg.MessageSentTime);
@@ -573,9 +554,9 @@ namespace RedGrin
         /// <param name="ownerId">The original broadcaster of the message</param>
         /// <param name="payload">The message object</param>
         /// <param name="time">The time the message was sent, used for projecting the state to current time.</param>
-        private void ApplyGenericMessage(long sender, object payload, double time)
+        private void ApplyGenericMessage(ulong id, object payload, double time)
         {
-            log?.Info($"Received generic message from {sender}");
+            log?.Debug($"Received generic message from client {INetworkEntityExtensions.UnpackClientId(id)}");
 
             if (payload == null)
             {
@@ -584,11 +565,9 @@ namespace RedGrin
                 throw new RedGrinException(msg);
             }
 
-            GameArena?.HandleGenericMessage(payload, time);
+            GameArena?.HandleGenericMessage(id, payload, time);
 
-            // NOTE: 0 is passed as the ID because it should be ignored by the
-            // receiving client and no entity should ever get an ID of 0
-            BroadcastIfServer(0, payload, NetworkMessageType.Generic);
+            BroadcastIfServer(id, payload, NetworkMessageType.Generic);
         }
 
         /// <summary>
@@ -621,7 +600,7 @@ namespace RedGrin
                 case NetConnectionStatus.Connected:
 
                     // get ClientId provided by the server if we're a client
-                    if(Role == NetworkRole.Client)
+                    if (Role == NetworkRole.Client)
                     {
                         var serverConnection = network.GetConnection(message.SenderEndPoint);
                         var remoteHail = serverConnection.RemoteHailMessage;
@@ -629,8 +608,11 @@ namespace RedGrin
                         {
                             ClientId = remoteHail.ReadByte();
                         }
+
+                        // add the server to our client Id map, its ID is always 1
+                        clientIdConnectionMap.Add(1, serverConnection);
                     }
-                    
+
                     log.Info($"Connected to: {message.SenderEndPoint} with Client ID {ClientId}");
                     Connected?.Invoke(message.SenderConnection.RemoteUniqueIdentifier);
                     // send all game objects to new peer
@@ -638,28 +620,51 @@ namespace RedGrin
                     {
                         SendCreateAllEntities(message.SenderConnection);
                     }
+
+                    RefreshConnectionCollection();
                     break;
-
-
                 case NetConnectionStatus.Disconnected:
                     log.Info("Disconnected.");
                     // raise event
                     Disconnected?.Invoke(message.SenderConnection.RemoteUniqueIdentifier);
-                    // destroy all game objects owned by disconnected peer
+                    RefreshConnectionCollection();
                     if (Role == NetworkRole.Server)
                     {
-                        // FIXME: need to match sender connection to client ID!
-                        // DestroyAllOwnedById(message.SenderConnection.RemoteUniqueIdentifier);
+                        DestroyUnownedEntities();
                     }
-
                     break;
-
-
                 case NetConnectionStatus.RespondedAwaitingApproval:
                     SendApprovalMessage(message.SenderConnection);
                     break;
             }
+        }
 
+        /// <summary>
+        /// Called when connect or disconnect messages are received, refreshes and
+        /// sanity checks the mapping of ClientId to NetConnection
+        /// </summary>
+        private void RefreshConnectionCollection()
+        {
+            // first remove any disconnected clients
+            var keys = clientIdConnectionMap.Keys.ToList();
+            for (var i = keys.Count - 1; i > -1; i--)
+            {
+                var k = keys[i];
+                if (!network.Connections.Contains(clientIdConnectionMap[k]))
+                {
+                    clientIdConnectionMap.Remove(k);
+                }
+            }
+
+            // sanity check: the network shouldn't have connections with no ClientId entry
+            for (var i = 0; i < network.Connections.Count; i++)
+            {
+                if (!clientIdConnectionMap.ContainsValue(network.Connections[i]))
+                {
+                    // TODO: force disconnect of unknown connection?
+                    throw new RedGrinException("Lidgren network contains a connection with no ClientId. This shouldn't happen!");
+                }
+            }
         }
 
         /// <summary>
@@ -679,17 +684,18 @@ namespace RedGrin
         }
 
         /// <summary>
-        /// Sends a Destroy message for all entities owned by a specific NetworkId.
-        /// Usually called in Server mode when a client disconnects to update other clients
+        /// Sends a Destroy message for all entities that no longer have an owner
         /// </summary>
-        /// <param name="ownerId">The OwnerId of entities to destroy.</param>
-        private void DestroyAllOwnedById(byte clientId)
+        private void DestroyUnownedEntities()
         {
             for (int i = entities.Count - 1; i > -1; i--)
             {
                 INetworkEntity entity = entities[i];
+                var id = entity.GetClientId();
 
-                if (entity.GetClientId() == clientId)
+                // if we don't own the entity and its ClientId isn't in the map
+                // the client must have disconnected and the entity should be destroyed
+                if (id != ClientId && !clientIdConnectionMap.ContainsKey(entity.GetClientId()))
                 {
                     SendDataMessage(entity, NetworkMessageType.Destroy);
                     if (Role == NetworkRole.Server)
@@ -811,7 +817,7 @@ namespace RedGrin
 
         private void SendApprovalMessage(NetConnection connection)
         {
-            if(clientIdCounter >= 255)
+            if (clientIdCounter >= 255)
             {
                 throw new RedGrinException("Too many clients have connected. Connection count maxed out!");
             }
@@ -819,6 +825,9 @@ namespace RedGrin
             NetOutgoingMessage hailMessage = network.CreateMessage();
             hailMessage.Write(id);
             connection.Approve(hailMessage);
+
+            // add the connection to the dictionary
+            clientIdConnectionMap.Add(id, connection);
         }
 
         /// <summary>

@@ -38,6 +38,6 @@ namespace RedGrin.Interfaces
         /// </summary>
         /// <param name="message">The message payload.</param>
         /// <param name="messageTime">The time the message was sent.</param>
-        void HandleGenericMessage(object message, double messageTime);
+        void HandleGenericMessage(ulong messageId, object message, double messageTime);
     }
 }
