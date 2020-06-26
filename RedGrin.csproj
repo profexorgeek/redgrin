@@ -66,10 +66,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Interfaces\INetworkEntityExtensions.cs" />
     <Compile Include="RedGrinException.cs" />
-    <Compile Include="INetworkArena.cs" />
+    <Compile Include="Interfaces\INetworkArena.cs" />
     <Compile Include="Logging\ILogger.cs" />
-    <Compile Include="INetworkEntity.cs" />
+    <Compile Include="Interfaces\INetworkEntity.cs" />
     <Compile Include="Logging\LogLevels.cs" />
     <Compile Include="Logging\NullLogger.cs" />
     <Compile Include="Messaging\NetworkMessage.cs" />
