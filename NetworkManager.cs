@@ -434,18 +434,18 @@ namespace RedGrin
             switch (netMsg.MessageType)
             {
                 case NetworkMessageType.Generic:
-                    ApplyGenericMessage(netMsg.EntityId, netMsg.Payload, netMsg.MessageSentTime);
+                    ApplyGenericMessage(netMsg.Id, netMsg.Payload, netMsg.MessageSentTime);
                     break;
                 case NetworkMessageType.Create:
-                    CreateEntity(netMsg.EntityId, netMsg.Payload, netMsg.MessageSentTime);
+                    CreateEntity(netMsg.Id, netMsg.Payload, netMsg.MessageSentTime);
                     break;
                 case NetworkMessageType.Destroy:
-                    DestroyEntity(netMsg.EntityId);
+                    DestroyEntity(netMsg.Id);
                     break;
                 case NetworkMessageType.Update:
                 case NetworkMessageType.Reckoning:
                     bool isReckoning = netMsg.MessageType == NetworkMessageType.Reckoning;
-                    UpdateEntity(netMsg.EntityId, netMsg.Payload, isReckoning, netMsg.MessageSentTime);
+                    UpdateEntity(netMsg.Id, netMsg.Payload, isReckoning, netMsg.MessageSentTime);
                     break;
                 default:
                     throw new RedGrinException("Message type not implemented: " + netMsg.MessageType.ToString());
@@ -787,7 +787,7 @@ namespace RedGrin
             }
 
             NetworkMessage message = new NetworkMessage();
-            message.EntityId = id;
+            message.Id = id;
             message.PayloadTypeId = payloadTypeId;
             message.MessageType = action;
             message.Payload = payload;
