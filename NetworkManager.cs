@@ -9,34 +9,22 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Collections.ObjectModel;
+using RedGrin.Interfaces;
 
 namespace RedGrin
 {
 
     public class NetworkManager
     {
-        #region Events
-
         public event NetworkEvent Connected;
         public event NetworkEvent Disconnected;
 
-        #endregion
+        //public ObservableCollection<NetConnection> Connections
+        //{ get; private set; } = new ObservableCollection<NetConnection>();
 
-        public ObservableCollection<NetConnection> Connections
-        { get; private set; } = new ObservableCollection<NetConnection>();
+        Dictionary<byte, NetConnection> connections = new Dictionary<byte, NetConnection>();
 
         static NetworkManager self;
-        public static NetworkManager Self
-        {
-            get
-            {
-                if (self == null)
-                {
-                    self = new NetworkManager();
-                }
-                return self;
-            }
-        }
 
         /// <summary>
         /// The seconds the last update happened.
@@ -52,6 +40,46 @@ namespace RedGrin
         /// Seconds remaining until the next dead reckoning
         /// </summary>
         private double timeToDeadReckon;
+
+        /// <summary>
+        /// The Lidgren NetPeer instance used to transmit and receive messages
+        /// </summary>
+        private NetPeer network;
+
+        /// <summary>
+        /// Master list of networked entities
+        /// </summary>
+        private List<INetworkEntity> entities = new List<INetworkEntity>();
+
+        /// <summary>
+        /// The logger instance that will be used to log messages.
+        /// </summary>
+        private ILogger log;
+
+        /// <summary>
+        /// A counter used to get new IDs for entities
+        /// </summary>
+        private uint entityIdCounter = 0;
+
+        /// <summary>
+        /// A counter used to get new IDs for clients:
+        /// 0 - reserved for no ID set status
+        /// 1 - reserved for server
+        /// </summary>
+        private byte clientIdCounter = 2;
+
+
+        public static NetworkManager Self
+        {
+            get
+            {
+                if (self == null)
+                {
+                    self = new NetworkManager();
+                }
+                return self;
+            }
+        }
 
         /// <summary>
         /// The role of this instance on the network
@@ -71,13 +99,21 @@ namespace RedGrin
         {
             get
             {
-                if (mNetwork == null)
+                if (network == null)
                 {
                     throw new RedGrinException("Attempted to get NetworkId before Network was initialized.");
                 }
-                return mNetwork.UniqueIdentifier;
+                return network.UniqueIdentifier;
             }
         }
+
+        /// <summary>
+        /// This is a short identifier that is used to uniquely identify
+        /// clients on the network. Redgrin supports up to 255 clients,
+        /// including the server itself. The zero value is reserved to indicate
+        /// that the ID has not been properly set
+        /// </summary>
+        public byte ClientId { get; set; } = 0;
 
         /// <summary>
         /// The configuration, including application name and port,
@@ -107,9 +143,9 @@ namespace RedGrin
                 }
                 else
                 {
-                    if (mNetwork != null && mNetwork.Connections != null && mNetwork.Connections.Count > 0)
+                    if (network != null && network.Connections != null && network.Connections.Count > 0)
                     {
-                        netTime = mNetwork.Connections[0].GetRemoteTime(NetTime.Now);
+                        netTime = network.Connections[0].GetRemoteTime(NetTime.Now);
                     }
                     else
                     {
@@ -123,49 +159,13 @@ namespace RedGrin
         /// <summary>
         /// The game arena that controls all client game objects
         /// </summary>
-        public INetworkArena GameArena
+        public INetworkArena GameArena { get; set; }
+
+
+
+        private NetworkManager()
         {
-            get
-            {
-                return mGameArena;
-            }
-            set
-            {
-                mGameArena = value;
-            }
-        }
-
-
-
-        /// <summary>
-        /// The Lidgren NetPeer instance used to transmit and receive messages
-        /// </summary>
-        private NetPeer mNetwork;
-
-        /// <summary>
-        /// Master list of networked entities
-        /// </summary>
-        private List<INetworkEntity> mEntities = new List<INetworkEntity>();
-
-        /// <summary>
-        /// The logger instance that will be used to log messages.
-        /// </summary>
-        private ILogger mLog;
-
-        /// <summary>
-        /// A counter used to get new IDs for entities
-        /// </summary>
-        private long entityId;
-
-        /// <summary>
-        /// A reference to the game arena
-        /// </summary>
-        private INetworkArena mGameArena;
-
-
-        NetworkManager()
-        {
-
+            // intentionally empty, just marked private for singleton intent
         }
 
         /// <summary>
@@ -179,176 +179,8 @@ namespace RedGrin
         {
             Configuration = config;
             // if no logger was provided, use NullLogger
-            mLog = log ?? new NullLogger();
+            this.log = log ?? new NullLogger();
             EntityStateTypes = config.EntityStateTypes;
-        }
-
-        /// <summary>
-        /// Reads any messages in the queue and updates Entities accordingly.
-        /// Usually called in the game loop.
-        /// Read messages are recycled at each iteration.
-        /// </summary>
-        public void Update()
-        {
-            lastUpdateDelta = ServerTime - lastUpdateTime;
-            lastUpdateTime = ServerTime;
-
-            // early out, don't update if network not running
-            // allows generic update call in main gameloop before
-            // network has initialized
-            if (mNetwork == null || mNetwork.Status != NetPeerStatus.Running)
-            {
-                return;
-            }
-
-            NetIncomingMessage msg;
-            while ((msg = mNetwork.ReadMessage()) != null)
-            {
-                switch (msg.MessageType)
-                {
-                    case NetIncomingMessageType.VerboseDebugMessage:
-                    case NetIncomingMessageType.DebugMessage:
-                        mLog.Debug(msg.ReadString());
-                        break;
-                    case NetIncomingMessageType.WarningMessage:
-                        mLog.Warning(msg.ReadString());
-                        break;
-                    case NetIncomingMessageType.ErrorMessage:
-                        mLog.Error(msg.ReadString());
-                        break;
-                    case NetIncomingMessageType.StatusChanged:
-                        ProcessStatusChangedMessage(msg);
-                        break;
-                    case NetIncomingMessageType.Data:
-                        ProcessDataMessage(msg);
-                        break;
-                }
-                mNetwork.Recycle(msg);
-            }
-
-            if (Configuration.DeadReckonSeconds > 0)
-            {
-                timeToDeadReckon -= lastUpdateDelta;
-                if (timeToDeadReckon <= 0)
-                {
-                    DeadReckon();
-                    timeToDeadReckon = Configuration.DeadReckonSeconds;
-                }
-            }
-
-
-            foreach (var internalConnection in mNetwork.Connections)
-            {
-                if (this.Connections.Contains(internalConnection) == false)
-                {
-                    this.Connections.Add(internalConnection);
-                }
-            }
-            for (int i = Connections.Count - 1; i > -1; i--)
-            {
-                if (mNetwork.Connections.Contains(Connections[i]) == false)
-                {
-                    Connections.RemoveAt(i);
-                }
-            }
-        }
-
-        /// <summary>
-        /// The dead reckoning cycle.
-        /// Broadcasts the state of all entities and forces updates.
-        /// Clients should always accept overrides from the server 
-        /// during dead reckoning to keep the game in sync.
-        /// </summary>
-        public void DeadReckon()
-        {
-            int reckonCount = 0;
-
-            for (int i = 0; i < mEntities.Count; i++)
-            {
-                // server sends reckoning message for everything but clients only send
-                // reckoning for owned entities
-                if (Role == NetworkRole.Server ||
-                    (Role == NetworkRole.Client && mEntities[i].OwnerId == NetworkId))
-                {
-                    SendDataMessage(mEntities[i], NetworkMessageType.Reckoning);
-                    reckonCount++;
-                }
-            }
-
-            mLog.Debug("Sent reckoning messages: " + reckonCount);
-        }
-
-        /// <summary>
-        /// Broadcasts a message to all clients to create the provided entity.
-        /// Note that this is broadcast only. No instantiation should happen
-        /// at this point.
-        /// </summary>
-        /// <param name="entity">The entity to create.</param>
-        public void RequestCreateEntity(object initialState)
-        {
-            if (Role == NetworkRole.Server)
-            {
-                CreateEntity(NetworkId, GetUniqueEntityId(), initialState, ServerTime);
-            }
-            else
-            {
-                SendDataMessage(-1, NetworkId, initialState, NetworkMessageType.Create);
-            }
-        }
-
-        /// <summary>
-        /// Broadcasts a message to all clients to destroy the provided entity.
-        /// Note that this is broadcast only. No destruction should happen until
-        /// a message is received.
-        /// </summary>
-        /// <param name="entity">The entity to destroy.</param>
-        public void RequestDestroyEntity(INetworkEntity entity)
-        {
-            if (Role == NetworkRole.Server)
-            {
-                DestroyEntity(entity.EntityId);
-            }
-            else
-            {
-                SendDataMessage(entity, NetworkMessageType.Destroy);
-            }
-        }
-
-        /// <summary>
-        /// Broadcasts a message to all clients to update the provided entity.
-        /// Note that this is broadcast only. No updating should happen until
-        /// a message is received.
-        /// </summary>
-        /// <param name="entity">The entity to update.</param>
-        public void RequestUpdateEntity(INetworkEntity entity)
-        {
-            if (Role == NetworkRole.Server)
-            {
-                UpdateEntity(entity.EntityId, entity.OwnerId, entity.GetState(), true, ServerTime);
-            }
-            else
-            {
-                SendDataMessage(entity, NetworkMessageType.Update);
-            }
-        }
-
-        /// <summary>
-        /// If instance is server, applies the generic message and then broadcasts it to
-        /// clients. If instance is a client, sends the data message to the server.
-        /// </summary>
-        /// <param name="genericMessage">A message in the form of a registered state object not tied to a specific entity.</param>
-        public void RequestGenericMessage(object genericMessage)
-        {
-            if (Role == NetworkRole.Server)
-            {
-                ApplyGenericMessage(NetworkId, genericMessage, ServerTime);
-            }
-            else
-            {
-                // NOTE: -1 as a magic constant isn't great but this enables us to send
-                // non-entity messages without a major change in the current pattern
-                SendDataMessage(-1, NetworkId, genericMessage, NetworkMessageType.Generic);
-            }
         }
 
         /// <summary>
@@ -376,22 +208,24 @@ namespace RedGrin
             config.SimulatedDuplicatesChance = Configuration.SimulatedDuplicateChance;
 #endif
 
-            mEntities = new List<INetworkEntity>();
+            entities = new List<INetworkEntity>();
 
 
             switch (Role)
             {
                 case NetworkRole.Client:
-                    mNetwork = new NetClient(config);
-                    mLog.Info("Starting client.");
+                    network = new NetClient(config);
+                    log.Info("Starting client.");
                     break;
                 case NetworkRole.Server:
+                    // server is always client 1
+                    ClientId = 1;
                     config.Port = Configuration.ApplicationPort;
-                    mNetwork = new NetServer(config);
-                    mLog.Info("Starting server on port:" + Configuration.ApplicationPort);
+                    network = new NetServer(config);
+                    log.Info("Starting server on port:" + Configuration.ApplicationPort);
                     break;
             }
-            mNetwork.Start();
+            network.Start();
         }
 
         /// <summary>
@@ -401,22 +235,24 @@ namespace RedGrin
         public void Connect(string address)
         {
             ServerAddress = address;
-            mLog.Debug("Connecting to: " + ServerAddress + ":" + Configuration.ApplicationPort);
+            log.Debug("Connecting to: " + ServerAddress + ":" + Configuration.ApplicationPort);
             if (Role == NetworkRole.Client)
             {
                 if (ServerAddress == null)
                 {
                     string errorMessage = "Bad server address.";
-                    mLog.Error(errorMessage);
+                    log.Error(errorMessage);
                     throw new RedGrinException(errorMessage);
                 }
-                mNetwork.Connect(address, Configuration.ApplicationPort);
+                network.Connect(address, Configuration.ApplicationPort);
+
+                
                 // TODO: set specific server connection variable here?
             }
             else
             {
                 string errorMessage = "Cannot connect while running as Server.";
-                mLog.Error(errorMessage);
+                log.Error(errorMessage);
                 throw new RedGrinException(errorMessage);
             }
         }
@@ -426,9 +262,185 @@ namespace RedGrin
         /// </summary>
         public void Disconnect()
         {
-            mLog.Debug("Disconnecting...");
-            mNetwork.Shutdown("Disconnecting.");
+            log.Debug("Disconnecting...");
+            network.Shutdown("Disconnecting.");
         }
+
+
+
+
+        /// <summary>
+        /// Reads any messages in the queue and updates Entities accordingly.
+        /// Usually called in the game loop.
+        /// Read messages are recycled at each iteration.
+        /// </summary>
+        public void Update()
+        {
+            lastUpdateDelta = ServerTime - lastUpdateTime;
+            lastUpdateTime = ServerTime;
+
+            // early out, don't update if network not running
+            // allows generic update call in main gameloop before
+            // network has initialized
+            if (network == null || network.Status != NetPeerStatus.Running)
+            {
+                return;
+            }
+
+            NetIncomingMessage msg;
+            while ((msg = network.ReadMessage()) != null)
+            {
+                switch (msg.MessageType)
+                {
+                    case NetIncomingMessageType.VerboseDebugMessage:
+                    case NetIncomingMessageType.DebugMessage:
+                        log.Debug(msg.ReadString());
+                        break;
+                    case NetIncomingMessageType.WarningMessage:
+                        log.Warning(msg.ReadString());
+                        break;
+                    case NetIncomingMessageType.ErrorMessage:
+                        log.Error(msg.ReadString());
+                        break;
+                    case NetIncomingMessageType.StatusChanged:
+                        ProcessStatusChangedMessage(msg);
+                        break;
+                    case NetIncomingMessageType.Data:
+                        ProcessDataMessage(msg);
+                        break;
+                }
+                network.Recycle(msg);
+            }
+
+            if (Configuration.DeadReckonSeconds > 0)
+            {
+                timeToDeadReckon -= lastUpdateDelta;
+                if (timeToDeadReckon <= 0)
+                {
+                    DeadReckon();
+                    timeToDeadReckon = Configuration.DeadReckonSeconds;
+                }
+            }
+
+            // FIXME: what's up with this? Do we need to keep two collections in sync!?
+            //foreach (var internalConnection in network.Connections)
+            //{
+            //    if (!connections.Values.Contains(internalConnection))
+            //    {
+            //        this.Connections.Add(internalConnection);
+            //    }
+            //}
+            //for (int i = Connections.Count - 1; i > -1; i--)
+            //{
+            //    if (network.Connections.Contains(Connections[i]) == false)
+            //    {
+            //        Connections.RemoveAt(i);
+            //    }
+            //}
+        }
+
+        /// <summary>
+        /// The dead reckoning cycle.
+        /// Broadcasts the state of all entities and forces updates.
+        /// Clients should always accept overrides from the server 
+        /// during dead reckoning to keep the game in sync.
+        /// </summary>
+        public void DeadReckon()
+        {
+            int reckonCount = 0;
+
+            for (int i = 0; i < entities.Count; i++)
+            {
+                // server sends reckoning message for everything but clients only send
+                // reckoning for owned entities
+                if (Role == NetworkRole.Server ||
+                    (Role == NetworkRole.Client && entities[i].IsOwned()))
+                {
+                    SendDataMessage(entities[i], NetworkMessageType.Reckoning);
+                    reckonCount++;
+                }
+            }
+
+            log.Debug("Sent reckoning messages: " + reckonCount);
+        }
+
+
+
+        /// <summary>
+        /// Broadcasts a message to all clients to create the provided entity.
+        /// Note that action probably shouldn't happen
+        /// for clients until the server bounces the message back
+        /// </summary>
+        /// <param name="initialState">The entity state.</param>
+        public ulong RequestCreateEntity(object initialState)
+        {
+            var id = GetUniqueEntityId();
+            if (Role == NetworkRole.Server)
+            {
+                CreateEntity(id, initialState, ServerTime);
+            }
+            else
+            {
+                SendDataMessage(id, initialState, NetworkMessageType.Create);
+            }
+            return id;
+        }
+
+        /// <summary>
+        /// Broadcasts a message to destroy the provided entity.
+        /// Note that action probably shouldn't happen
+        /// for clients until the server bounces the message back
+        /// </summary>
+        /// <param name="entity">The entity to destroy.</param>
+        public void RequestDestroyEntity(INetworkEntity entity)
+        {
+            if (Role == NetworkRole.Server)
+            {
+                DestroyEntity(entity.Id);
+            }
+            else
+            {
+                SendDataMessage(entity, NetworkMessageType.Destroy);
+            }
+        }
+
+        /// <summary>
+        /// Broadcasts a message to all clients to update the provided entity.
+        /// </summary>
+        /// <param name="entity">The entity to update.</param>
+        public void RequestUpdateEntity(INetworkEntity entity)
+        {
+            if (Role == NetworkRole.Server)
+            {
+                UpdateEntity(entity.Id, entity.GetState(), true, ServerTime);
+            }
+            else
+            {
+                SendDataMessage(entity, NetworkMessageType.Update);
+            }
+        }
+
+        /// <summary>
+        /// If instance is server, applies the generic message and then broadcasts it to
+        /// clients. If instance is a client, sends the data message to the server.
+        /// </summary>
+        /// <param name="genericMessage">A message in the form of a registered state object not tied to a specific entity.</param>
+        public void RequestGenericMessage(object genericMessage)
+        {
+            if (Role == NetworkRole.Server)
+            {
+                ApplyGenericMessage(NetworkId, genericMessage, ServerTime);
+            }
+            else
+            {
+                // NOTE: 0 as a magic constant isn't great but this enables us to send
+                // non-entity messages without a major change in the current pattern
+                SendDataMessage(0, genericMessage, NetworkMessageType.Generic);
+            }
+        }
+
+
+
 
 
         /// <summary>
@@ -438,24 +450,24 @@ namespace RedGrin
         private void ProcessDataMessage(NetIncomingMessage message)
         {
             NetworkMessage netMsg = new NetworkMessage(message);
-            switch (netMsg.Action)
+            switch (netMsg.MessageType)
             {
                 case NetworkMessageType.Generic:
-                    ApplyGenericMessage(netMsg.OwnerId, netMsg.Payload, netMsg.MessageSentTime);
+                    ApplyGenericMessage(message.SenderConnection.RemoteUniqueIdentifier, netMsg.Payload, netMsg.MessageSentTime);
                     break;
                 case NetworkMessageType.Create:
-                    CreateEntity(netMsg.OwnerId, netMsg.EntityId, netMsg.Payload, netMsg.MessageSentTime);
+                    CreateEntity(netMsg.EntityId, netMsg.Payload, netMsg.MessageSentTime);
                     break;
                 case NetworkMessageType.Destroy:
                     DestroyEntity(netMsg.EntityId);
                     break;
                 case NetworkMessageType.Update:
                 case NetworkMessageType.Reckoning:
-                    bool isReckoning = netMsg.Action == NetworkMessageType.Reckoning;
-                    UpdateEntity(netMsg.EntityId, netMsg.OwnerId, netMsg.Payload, isReckoning, netMsg.MessageSentTime);
+                    bool isReckoning = netMsg.MessageType == NetworkMessageType.Reckoning;
+                    UpdateEntity(netMsg.EntityId, netMsg.Payload, isReckoning, netMsg.MessageSentTime);
                     break;
                 default:
-                    throw new RedGrinException("Message type not implemented: " + netMsg.Action.ToString());
+                    throw new RedGrinException("Message type not implemented: " + netMsg.MessageType.ToString());
             }
         }
 
@@ -466,73 +478,56 @@ namespace RedGrin
         /// <param name="entityId">The unique identifier for the entity.</param>
         /// <param name="payload">The object that will be used to apply the entity's starting state.</param>
         /// <param name="time">The time the message was sent, used for projecting the state to current time.</param>
-        private void CreateEntity(long ownerId, long entityId, object payload, double time)
+        private void CreateEntity(ulong uniqueId, object payload, double time)
         {
-            // this is a brand new entity, get a new ID
-            if (entityId == -1)
-            {
-                if (Role == NetworkRole.Server)
-                {
-                    entityId = GetUniqueEntityId();
-                }
-                else
-                {
-                    var msg = "Something went wrong, client received bad entity ID.";
-                    mLog.Error(msg);
-                    throw new RedGrinException(msg);
-                }
-            }
+            //// this is a brand new entity, get a new ID
+            //if (entityId == -1)
+            //{
+            //    if (Role == NetworkRole.Server)
+            //    {
+            //        entityId = GetUniqueEntityId();
+            //    }
+            //    else
+            //    {
+            //        var msg = "Something went wrong, client received bad entity ID.";
+            //        log.Error(msg);
+            //        throw new RedGrinException(msg);
+            //    }
+            //}
 
             // check entity with ID already exists
-            INetworkEntity targetEntity = mEntities.Where(e => e.EntityId == entityId).SingleOrDefault();
+            INetworkEntity targetEntity = entities.Where(e => e.Id == uniqueId).SingleOrDefault();
 
             if (targetEntity == null)
             {
-                targetEntity = GameArena?.RequestCreateEntity(ownerId, payload);
-            }
-            else
-            {
-                var msg = "Attempted to create entity for ID that already exists: " + entityId;
-                mLog?.Error(msg);
-                throw new RedGrinException(msg);
-            }
+                targetEntity = GameArena?.HandleCreateEntity(uniqueId, payload);
 
-            targetEntity.UpdateFromState(payload, time);
-            targetEntity.OwnerId = ownerId;
-            targetEntity.EntityId = entityId;
-            mEntities.Add(targetEntity);
-
-            BroadcastIfServer(entityId, ownerId, payload, NetworkMessageType.Create);
-        }
-
-        public void AddToEntities(INetworkEntity entityToAdd)
-        {
-#if DEBUG
-            if (mEntities.Contains(entityToAdd))
-            {
-                throw new InvalidOperationException("This entity is already part of the list, it can't be added again.");
+                // force correct unique ID
+                targetEntity.Id = uniqueId;
             }
-#endif
-            entityToAdd.EntityId = GetUniqueEntityId();
-            mEntities.Add(entityToAdd);
+            targetEntity.UpdateFromState(payload, time, false);
+            entities.Add(targetEntity);
+
+            BroadcastIfServer(uniqueId, payload, NetworkMessageType.Create);
         }
 
         /// <summary>
         /// Called when a Destroy message has arrived, destroys an entity.
         /// </summary>
         /// <param name="entityId">The unique ID of the entity to be destroyed</param>
-        private void DestroyEntity(long entityId)
+        private void DestroyEntity(ulong id)
         {
-            INetworkEntity target = mEntities.Where(e => e.EntityId == entityId).SingleOrDefault();
+            INetworkEntity target = entities.Where(e => e.Id == id).SingleOrDefault();
             if (target != null)
             {
-                BroadcastIfServer(target.EntityId, target.OwnerId, null, NetworkMessageType.Destroy);
-                mEntities.Remove(target);
-                GameArena?.RequestDestroyEntity(target);
+                log.Debug($"Destroying entity {id}");
+                BroadcastIfServer(target.Id, null, NetworkMessageType.Destroy);
+                entities.Remove(target);
+                GameArena?.HandleDestroyEntity(target);
             }
             else
             {
-                mLog.Debug("Couldn't find entity marked for destruction: " + entityId);
+                log.Debug($"Couldn't find entity marked for destruction: {id}");
             }
         }
 
@@ -543,29 +538,32 @@ namespace RedGrin
         /// <param name="payload">The object that will be used to apply the entity's starting state.</param>
         /// <param name="isReckoning">True if this is a reckoning update.</param>
         /// <param name="time">The time the message was sent, used for projecting the state to current time.</param>
-        private void UpdateEntity(long entityId, long ownerId, object payload, bool isReckoning, double time)
+        private void UpdateEntity(ulong id, object payload, bool isReckoning, double time)
         {
-            INetworkEntity targetEntity = mEntities.Where(e => e.EntityId == entityId && e.OwnerId == ownerId).SingleOrDefault();
+            INetworkEntity targetEntity = entities.Where(e => e.Id == id).SingleOrDefault();
 
-            mLog?.Debug($"Receiving update from {ownerId} to update entity {payload?.GetType()}");
+            log?.Debug($"Receiving update from {targetEntity.GetClientId()} to update entity {payload?.GetType()}");
 
             if (targetEntity != null)
             {
-                if (targetEntity.OwnerId != this.NetworkId || isReckoning)
-                {
-                    targetEntity.UpdateFromState(payload, time);
-                }
+                targetEntity.UpdateFromState(payload, time, isReckoning);
+                BroadcastIfServer(id, payload, isReckoning ? NetworkMessageType.Reckoning : NetworkMessageType.Update);
 
-                BroadcastIfServer(entityId, targetEntity.OwnerId, payload,
-                    isReckoning ?
-                    NetworkMessageType.Reckoning :
-                    NetworkMessageType.Update
-                    );
+                //if (targetEntity.OwnerId != this.NetworkId || isReckoning)
+                //{
+                //    targetEntity.UpdateFromState(payload, time);
+                //}
+
+                //BroadcastIfServer(entityId, targetEntity.OwnerId, payload,
+                //    isReckoning ?
+                //    NetworkMessageType.Reckoning :
+                //    NetworkMessageType.Update
+                //    );
             }
             else
             {
                 // ignore if null, entity creation message may not have arrived yet
-                mLog.Debug("Couldn't find entity to update: " + entityId);
+                log.Debug("Couldn't find entity to update: " + id);
             }
         }
 
@@ -575,22 +573,22 @@ namespace RedGrin
         /// <param name="ownerId">The original broadcaster of the message</param>
         /// <param name="payload">The message object</param>
         /// <param name="time">The time the message was sent, used for projecting the state to current time.</param>
-        private void ApplyGenericMessage(long ownerId, object payload, double time)
+        private void ApplyGenericMessage(long sender, object payload, double time)
         {
-            mLog?.Info($"Received generic message from {ownerId}");
+            log?.Info($"Received generic message from {sender}");
 
             if (payload == null)
             {
                 var msg = "Bad or missing payload for generic message.";
-                mLog?.Error(msg);
+                log?.Error(msg);
                 throw new RedGrinException(msg);
             }
 
             GameArena?.HandleGenericMessage(payload, time);
 
-            // NOTE: -1 as a magic constant isn't great but this enables us to send
-            // non-entity messages without a major change in the current pattern
-            BroadcastIfServer(-1, ownerId, payload, NetworkMessageType.Generic);
+            // NOTE: 0 is passed as the ID because it should be ignored by the
+            // receiving client and no entity should ever get an ID of 0
+            BroadcastIfServer(0, payload, NetworkMessageType.Generic);
         }
 
         /// <summary>
@@ -601,11 +599,11 @@ namespace RedGrin
         /// <param name="ownerId">The owner of the affected entity</param>
         /// <param name="payload">The payload from the original message.</param>
         /// <param name="action">Type type of message, determining the action to be taken.</param>
-        private void BroadcastIfServer(long entityId, long ownerId, object payload, NetworkMessageType action)
+        private void BroadcastIfServer(ulong id, object payload, NetworkMessageType action)
         {
             if (Role == NetworkRole.Server)
             {
-                SendDataMessage(entityId, ownerId, payload, action);
+                SendDataMessage(id, payload, action);
             }
         }
 
@@ -621,10 +619,20 @@ namespace RedGrin
             switch (newStatus)
             {
                 case NetConnectionStatus.Connected:
-                    mLog.Info("Connected to: " + message.SenderEndPoint);
 
+                    // get ClientId provided by the server if we're a client
+                    if(Role == NetworkRole.Client)
+                    {
+                        var serverConnection = network.GetConnection(message.SenderEndPoint);
+                        var remoteHail = serverConnection.RemoteHailMessage;
+                        if (remoteHail != null)
+                        {
+                            ClientId = remoteHail.ReadByte();
+                        }
+                    }
+                    
+                    log.Info($"Connected to: {message.SenderEndPoint} with Client ID {ClientId}");
                     Connected?.Invoke(message.SenderConnection.RemoteUniqueIdentifier);
-
                     // send all game objects to new peer
                     if (Role == NetworkRole.Server)
                     {
@@ -634,23 +642,21 @@ namespace RedGrin
 
 
                 case NetConnectionStatus.Disconnected:
-                    mLog.Info("Disconnected.");
-
+                    log.Info("Disconnected.");
                     // raise event
                     Disconnected?.Invoke(message.SenderConnection.RemoteUniqueIdentifier);
-
                     // destroy all game objects owned by disconnected peer
                     if (Role == NetworkRole.Server)
                     {
-                        DestroyAllOwnedById(message.SenderConnection.RemoteUniqueIdentifier);
+                        // FIXME: need to match sender connection to client ID!
+                        // DestroyAllOwnedById(message.SenderConnection.RemoteUniqueIdentifier);
                     }
 
                     break;
 
 
                 case NetConnectionStatus.RespondedAwaitingApproval:
-                    // TODO: set max connections and deny if full
-                    message.SenderConnection.Approve();
+                    SendApprovalMessage(message.SenderConnection);
                     break;
             }
 
@@ -665,9 +671,10 @@ namespace RedGrin
         /// If not supplied, the message will be sent to all connections.</param>
         private void SendCreateAllEntities(NetConnection recipient = null)
         {
-            foreach (INetworkEntity entity in mEntities)
+            // TODO: roll these up into a special message containing all data?
+            for (var i = 0; i < entities.Count; i++)
             {
-                SendDataMessage(entity, NetworkMessageType.Create, recipient: recipient);
+                SendDataMessage(entities[i], NetworkMessageType.Create, recipient: recipient);
             }
         }
 
@@ -676,18 +683,18 @@ namespace RedGrin
         /// Usually called in Server mode when a client disconnects to update other clients
         /// </summary>
         /// <param name="ownerId">The OwnerId of entities to destroy.</param>
-        private void DestroyAllOwnedById(long ownerId)
+        private void DestroyAllOwnedById(byte clientId)
         {
-            for (int i = mEntities.Count - 1; i > -1; i--)
+            for (int i = entities.Count - 1; i > -1; i--)
             {
-                INetworkEntity entity = mEntities[i];
+                INetworkEntity entity = entities[i];
 
-                if (entity.OwnerId == ownerId)
+                if (entity.GetClientId() == clientId)
                 {
                     SendDataMessage(entity, NetworkMessageType.Destroy);
                     if (Role == NetworkRole.Server)
                     {
-                        DestroyEntity(entity.EntityId);
+                        DestroyEntity(entity.Id);
                     }
                 }
             }
@@ -703,14 +710,8 @@ namespace RedGrin
         /// <param name="recipient">The recipient connection. Will send to all if null.</param>
         private void SendDataMessage(INetworkEntity entity, NetworkMessageType action, NetConnection recipient = null)
         {
-            // clients can't force a message for an entity they don't own
-            if (Role != NetworkRole.Server && entity.OwnerId != NetworkId)
-            {
-                throw new RedGrinException("Cannot send an update for an entity that is not owned by this client!");
-            }
-
             object payload = entity.GetState();
-            SendDataMessage(entity.EntityId, entity.OwnerId, payload, action, recipient);
+            SendDataMessage(entity.Id, payload, action, recipient);
         }
 
         // from https://stackoverflow.com/questions/6803073/get-local-ip-address
@@ -736,7 +737,7 @@ namespace RedGrin
         /// <param name="action">The type of message that determines the ultimate action taken.</param>
         /// <param name="method">The delivery method.</param>
         /// <param name="recipient">The recipient connection. Will send to all if null.</param>
-        private void SendDataMessage(long entityId, long ownerId, object payload, NetworkMessageType action, NetConnection recipient = null)
+        private void SendDataMessage(ulong id, object payload, NetworkMessageType action, NetConnection recipient = null)
         {
             int payloadTypeId = -1;
             Type type;
@@ -780,46 +781,62 @@ namespace RedGrin
             }
 
             NetworkMessage message = new NetworkMessage();
-            message.SenderId = NetworkId;
-            message.OwnerId = ownerId;
-            message.EntityId = entityId;
+            message.EntityId = id;
             message.PayloadTypeId = payloadTypeId;
-            message.Action = action;
+            message.MessageType = action;
             message.Payload = payload;
 
-            NetOutgoingMessage outgoingMessage = mNetwork.CreateMessage();
+            NetOutgoingMessage outgoingMessage = network.CreateMessage();
             message.Encode(outgoingMessage, ServerTime);
             switch (Role)
             {
                 case NetworkRole.Server:
                     if (recipient == null)
                     {
-                        ((NetServer)mNetwork).SendToAll(outgoingMessage, method);
+                        ((NetServer)network).SendToAll(outgoingMessage, method);
                     }
                     else
                     {
-                        ((NetServer)mNetwork).SendMessage(outgoingMessage, recipient, method);
+                        ((NetServer)network).SendMessage(outgoingMessage, recipient, method);
                     }
                     break;
                 case NetworkRole.Client:
-                    var server = ((NetClient)mNetwork).ServerConnection;
-                    mNetwork.SendMessage(outgoingMessage, server, method);
+                    var server = ((NetClient)network).ServerConnection;
+                    network.SendMessage(outgoingMessage, server, method);
                     break;
                 default:
                     throw new RedGrinException("Attempted to send message as an unsupported role: " + Role.ToString());
             }
         }
 
+        private void SendApprovalMessage(NetConnection connection)
+        {
+            if(clientIdCounter >= 255)
+            {
+                throw new RedGrinException("Too many clients have connected. Connection count maxed out!");
+            }
+            var id = clientIdCounter++;
+            NetOutgoingMessage hailMessage = network.CreateMessage();
+            hailMessage.Write(id);
+            connection.Approve(hailMessage);
+        }
+
         /// <summary>
         /// Gets a unique ID for assignment to an entity.
         /// </summary>
         /// <returns>Long integer</returns>
-        private long GetUniqueEntityId()
+        private ulong GetUniqueEntityId()
         {
-            // TODO: handle max long ID?
-            long id = entityId;
-            entityId++;
-            return id;
+            return INetworkEntityExtensions.PackUniqueId(ClientId, entityIdCounter++);
+        }
+
+        public bool IsOwnedId(ulong id)
+        {
+            return INetworkEntityExtensions.UnpackClientId(id) == ClientId;
         }
     }
 }
+
+
+
+
