@@ -10,18 +10,17 @@ namespace RedGrin.Messaging
 {
     /// <summary>
     /// A message capable of transferring almost any type of data across the network.
+    /// This wraps the Lidgren incoming and outgoing messages to provide hands-off
+    /// serialization functionality
     /// </summary>
     internal class NetworkMessage
     {
         const BindingFlags DefaultBinding = BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy;
 
-        // not encoded, derived from the remote connection
-        public long SenderId { get; set; }
-
         // Header properties encoded in every message
         public double MessageSentTime { get; set; }
         public NetworkMessageType MessageType { get; set; }
-        public long UniqueId { get; set; }
+        public ulong EntityId { get; set; }
         public int PayloadTypeId { get; set; }
 
         // The actual message data payload
@@ -48,12 +47,10 @@ namespace RedGrin.Messaging
         /// <param name="msg">The message to parse.</param>
         public void Decode(NetIncomingMessage msg)
         {
-            SenderId = msg.SenderConnection.RemoteUniqueIdentifier;
-
             // read "header" properties
             MessageSentTime = msg.ReadDouble();
             MessageType = (NetworkMessageType)msg.ReadByte();
-            UniqueId = msg.ReadInt64();
+            EntityId = msg.ReadUInt64();
             PayloadTypeId = msg.ReadInt32();
 
             // Destroy messages have no payload type, only an EntityId
@@ -92,7 +89,7 @@ namespace RedGrin.Messaging
             // write "header" properties
             msg.Write(MessageSentTime);
             msg.Write((byte)MessageType);
-            msg.Write(UniqueId);
+            msg.Write(EntityId);
             msg.Write(PayloadTypeId);
 
             try
