@@ -1,7 +1,5 @@
 # README #
 
-**NOTE: Redgrin is under major refactoring right now to be more flexible with hybrid client-server architectures. Implementing against the master branch is not recommended! For questionsor opinions hit profexorgeek on twitter.**
-
 RedGrin is an opinionated wrapper for Lidgren that attempts to simplify multiplayer networking for small indie games. Redgrin was written specifically for the [FlatRedBall](http://flatredball.com) game engine but should be compatible with any C# game engine including MonoGame and Unity.
 
 ## What does Redgrin do that Lidgren doesn't?
