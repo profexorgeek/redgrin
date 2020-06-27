@@ -459,37 +459,22 @@ namespace RedGrin
         /// <param name="entityId">The unique identifier for the entity.</param>
         /// <param name="payload">The object that will be used to apply the entity's starting state.</param>
         /// <param name="time">The time the message was sent, used for projecting the state to current time.</param>
-        private void CreateEntity(ulong uniqueId, object payload, double time)
+        private void CreateEntity(ulong id, object payload, double time)
         {
-            //// this is a brand new entity, get a new ID
-            //if (entityId == -1)
-            //{
-            //    if (Role == NetworkRole.Server)
-            //    {
-            //        entityId = GetUniqueEntityId();
-            //    }
-            //    else
-            //    {
-            //        var msg = "Something went wrong, client received bad entity ID.";
-            //        log.Error(msg);
-            //        throw new RedGrinException(msg);
-            //    }
-            //}
-
             // check entity with ID already exists
-            INetworkEntity targetEntity = entities.Where(e => e.Id == uniqueId).SingleOrDefault();
+            INetworkEntity targetEntity = entities.Where(e => e.Id == id).SingleOrDefault();
 
             if (targetEntity == null)
             {
-                targetEntity = GameArena?.HandleCreateEntity(uniqueId, payload);
+                targetEntity = GameArena?.HandleCreateEntity(id, payload);
 
                 // force correct unique ID
-                targetEntity.Id = uniqueId;
+                targetEntity.Id = id;
             }
             targetEntity.UpdateFromState(payload, time, false);
             entities.Add(targetEntity);
 
-            BroadcastIfServer(uniqueId, payload, NetworkMessageType.Create);
+            BroadcastIfServer(id, payload, NetworkMessageType.Create);
         }
 
         /// <summary>
@@ -523,23 +508,10 @@ namespace RedGrin
         {
             INetworkEntity targetEntity = entities.Where(e => e.Id == id).SingleOrDefault();
 
-            log?.Debug($"Receiving update from {targetEntity.GetClientId()} to update entity {payload?.GetType()}");
-
             if (targetEntity != null)
             {
                 targetEntity.UpdateFromState(payload, time, isReckoning);
                 BroadcastIfServer(id, payload, isReckoning ? NetworkMessageType.Reckoning : NetworkMessageType.Update);
-
-                //if (targetEntity.OwnerId != this.NetworkId || isReckoning)
-                //{
-                //    targetEntity.UpdateFromState(payload, time);
-                //}
-
-                //BroadcastIfServer(entityId, targetEntity.OwnerId, payload,
-                //    isReckoning ?
-                //    NetworkMessageType.Reckoning :
-                //    NetworkMessageType.Update
-                //    );
             }
             else
             {
