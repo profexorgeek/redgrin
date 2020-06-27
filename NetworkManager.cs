@@ -241,7 +241,15 @@ namespace RedGrin
                     log.Error(errorMessage);
                     throw new RedGrinException(errorMessage);
                 }
-                network.Connect(address, Configuration.ApplicationPort);
+
+                try
+                {
+                    network.Connect(address, Configuration.ApplicationPort);
+                }
+                catch (Exception ex)
+                {
+                    throw new RedGrinException(ex.Message);
+                }
 
 
                 // TODO: set specific server connection variable here?
