@@ -18,6 +18,7 @@ namespace RedGrin
     {
         public event NetworkEvent Connected;
         public event NetworkEvent Disconnected;
+        public event NetworkEvent ClientConnected;
 
         Dictionary<byte, NetConnection> clientIdConnectionMap = new Dictionary<byte, NetConnection>();
 
@@ -591,14 +592,16 @@ namespace RedGrin
 
                         // add the server to our client Id map, its ID is always 1
                         clientIdConnectionMap.Add(1, serverConnection);
+                        log.Info($"Connected to: {message.SenderEndPoint} with Client ID {ClientId}");
+                        Connected?.Invoke(message.SenderConnection.RemoteUniqueIdentifier);
                     }
-
-                    log.Info($"Connected to: {message.SenderEndPoint} with Client ID {ClientId}");
-                    Connected?.Invoke(message.SenderConnection.RemoteUniqueIdentifier);
                     // send all game objects to new peer
                     if (Role == NetworkRole.Server)
                     {
+                        var id = clientIdConnectionMap.Where(kvp => kvp.Value == message.SenderConnection).FirstOrDefault();
+                        log.Info($"New client connected from: {message.SenderEndPoint} with id {id}");
                         SendCreateAllEntities(message.SenderConnection);
+                        ClientConnected?.Invoke(message.SenderConnection.RemoteUniqueIdentifier);
                     }
 
                     RefreshConnectionCollection();
