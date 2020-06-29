@@ -159,6 +159,26 @@ namespace RedGrin
         /// </summary>
         public INetworkArena GameArena { get; set; }
 
+        public bool IsConnected
+        {
+            get
+            {
+                if(Role == NetworkRole.Server)
+                {
+                    return true;
+                }
+                else
+                {
+                    if(network.ConnectionsCount > 0)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+
 
 
         private NetworkManager()
