@@ -19,6 +19,7 @@ namespace RedGrin
         public event NetworkEvent Connected;
         public event NetworkEvent Disconnected;
         public event NetworkEvent ClientConnected;
+        public event NetworkEvent ClientDisconnected;
 
         Dictionary<byte, NetConnection> clientIdConnectionMap = new Dictionary<byte, NetConnection>();
 
@@ -288,8 +289,16 @@ namespace RedGrin
         /// </summary>
         public void Disconnect()
         {
-            log.Debug("Disconnecting...");
-            network.Shutdown("Disconnecting.");
+            var msg = "Disconnecting...";
+            log.Info(msg);
+            foreach (var connection in network.Connections)
+            {
+                connection.Disconnect(msg);
+            }
+            network.Shutdown(msg);
+            Disconnected?.Invoke(network.UniqueIdentifier);
+
+            clientIdConnectionMap.Clear();
         }
 
 
@@ -611,7 +620,16 @@ namespace RedGrin
                         }
 
                         // add the server to our client Id map, its ID is always 1
-                        clientIdConnectionMap.Add(1, serverConnection);
+                        // old connection may still be around if it wasn't cleaned up
+                        if(clientIdConnectionMap.ContainsKey(1))
+                        {
+                            clientIdConnectionMap[1] = serverConnection;
+                        }
+                        else
+                        {
+                            clientIdConnectionMap.Add(1, serverConnection);
+                        }
+                        
                         log.Info($"Connected to: {message.SenderEndPoint} with Client ID {ClientId}");
                         Connected?.Invoke(message.SenderConnection.RemoteUniqueIdentifier);
                     }
@@ -627,14 +645,18 @@ namespace RedGrin
                     RefreshConnectionCollection();
                     break;
                 case NetConnectionStatus.Disconnected:
-                    log.Info("Disconnected.");
-                    // raise event
-                    Disconnected?.Invoke(message.SenderConnection.RemoteUniqueIdentifier);
-                    RefreshConnectionCollection();
+                    if (Role == NetworkRole.Client)
+                    {
+                        log.Info("Disconnected from server.");
+                        Disconnected?.Invoke(message.SenderConnection.RemoteUniqueIdentifier);
+                    }
                     if (Role == NetworkRole.Server)
                     {
+                        log.Info("Client disconnected.");
+                        ClientDisconnected?.Invoke(message.SenderConnection.RemoteUniqueIdentifier);
                         DestroyUnownedEntities();
                     }
+                    RefreshConnectionCollection();
                     break;
                 case NetConnectionStatus.RespondedAwaitingApproval:
                     SendApprovalMessage(message.SenderConnection);
@@ -691,6 +713,9 @@ namespace RedGrin
         /// </summary>
         private void DestroyUnownedEntities()
         {
+            // ensure our connections list is accurate
+            RefreshConnectionCollection();
+
             for (int i = entities.Count - 1; i > -1; i--)
             {
                 INetworkEntity entity = entities[i];
@@ -845,6 +870,12 @@ namespace RedGrin
         public bool IsOwnedId(ulong id)
         {
             return INetworkEntityExtensions.UnpackClientId(id) == ClientId;
+        }
+
+        public byte ClientIdFromNetworkId(long id)
+        {
+            var connection = network.Connections.Where(c => c.RemoteUniqueIdentifier == id).FirstOrDefault();
+            return clientIdConnectionMap.Where(kvp => kvp.Value == connection).FirstOrDefault().Key;
         }
     }
 }
